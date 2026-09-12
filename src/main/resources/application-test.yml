@@ -1,0 +1,61 @@
+spring:
+  application:
+    name: core-api-test
+
+  config:
+    import: optional:file:.env[.properties]
+
+  messages:
+    basename: messages/messages
+    encoding: UTF-8
+    fallback-to-system-locale: false
+
+  security:
+    jwt:
+      token:
+        secret-key: test-jwt-secret
+        expire-length: 3600000
+
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB}
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:ci_redis_password}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    open-in-view: true
+
+  mongodb:
+    authentication-database: admin
+    uri: ${MONGO_URL}
+    auto-index-creation: true
+
+
+server:
+  port: 0
+
+
+brevo:
+  enabled: false
+  api:
+    key: test-brevo-key
+    url: https://api.brevo.com/v3/smtp/email
+
+  sender:
+    email: test@test.com
+    name: Test
+
+
+cloudinary:
+  cloud_name: test-cloud
+  api_key: test-api-key
+  api_secret: test-api-secret

@@ -1,0 +1,60 @@
+package com.aether.ms_inventory.shared.persistence.postgres.entities;
+
+import com.aether.ms_inventory.shared.AetherConstants;
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+import java.time.LocalDate;
+import java.util.List;
+
+@Entity
+@Table(name = "inventory")
+@NoArgsConstructor
+@AllArgsConstructor
+@Getter
+@Setter
+public class InventoryEntity extends DateBaseEntity{
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Integer id;
+
+  @Column(length = AetherConstants.MAX_INVENTORY_NAME_LENGTH, nullable = false)
+  private String name;
+
+  @Column(length = AetherConstants.MAX_INVENTORY_DESCRIPTION_LENGTH)
+  private String description;
+
+  @Column(name = "consolidation_approach", length = AetherConstants.MAX_INVENTORY_CONSOLIDATION_APPROACH_LENGTH)
+  private String consolidationApproach;
+
+  @Column(name = "inventorying_period_start")
+  private LocalDate inventoryPeriodStart;
+
+  @Column(name = "inventorying_period_end")
+  private LocalDate inventoryPeriodEnd;
+
+  @ManyToOne
+  @JoinColumn(name = "id_department")
+  private DepartmentEntity department;
+
+  @ManyToOne
+  @JoinColumn(name = "id_owner_employee")
+  private EmployeeEntity ownerEmployee;
+
+  @ManyToOne
+  @JoinColumn(name = "id_validator_employee")
+  private EmployeeEntity validatorEmployee;
+
+  @OneToMany(mappedBy = "inventory")
+  private List<EmissionEntity> emissions;
+
+  @OneToMany(mappedBy = "inventory")
+  private List<ReductionEntity> reductions;
+
+  @OneToOne
+  @JoinColumn(name = "id_storage_file")
+  private StorageFileEntity storageFile;
+}
