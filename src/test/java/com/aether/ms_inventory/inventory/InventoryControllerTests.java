@@ -48,21 +48,16 @@ class InventoryControllerTests {
   @Autowired
   private JwtTokenProvider jwtTokenProvider;
 
-  private final List<Integer> ids = new ArrayList<>();
-
   private EmployeeEntity employeeActive;
   private PermissionEntity permission;
   private PermissionGroupEntity permissionGroup;
   private DepartmentEntity department;
-  private List<Integer> inventoriesIds;
+  private List<Integer> inventoriesIds = new ArrayList<>();
 
-  @BeforeEach
-  void setup() {
-
+  @BeforeAll
+  void beforeAll() {
     department = new DepartmentEntity();
-
     department.setName("Departamento Teste");
-
     department = departmentRepository.save(department);
 
     permission = new PermissionEntity(
@@ -70,21 +65,16 @@ class InventoryControllerTests {
         null,
         "^.*/inventories.*$"
     );
-
     permissionRepository.save(permission);
 
-    permissionGroup = new PermissionGroupEntity(
-        "Funcionário"
-    );
-
+    permissionGroup = new PermissionGroupEntity("Funcionário");
     permissionGroup.setPermissions(List.of(permission));
-
     permissionGroupRepository.save(permissionGroup);
 
     employeeActive = new EmployeeEntity(
-        "12345678902",
+        "12345678909",
         "Teste",
-        "test@test.com",
+        "test@test1.com",
         "senhaHash",
         "11977394517",
         EmployeeStatusEnum.ACTIVE,
@@ -92,36 +82,34 @@ class InventoryControllerTests {
     );
 
     employeeActive.setDepartment(department);
-
     employeeActive = employeeRepository.save(employeeActive);
-
-    ids.add(employeeActive.getId());
-    ids.add(department.getId());
   }
 
+  @AfterAll()
+  void afterAll(){
+    if (employeeActive != null && employeeActive.getId() != null) {
+      employeeRepository.deleteById(employeeActive.getId());
+    }
+
+    if (permissionGroup != null && permissionGroup.getId() != null) {
+      permissionGroupRepository.deleteById(permissionGroup.getId());
+    }
+
+    if (permission != null && permission.getId() != null) {
+      permissionRepository.deleteById(permission.getId());
+    }
+
+    if (department != null && department.getId() != null) {
+      departmentRepository.deleteById(department.getId());
+    }
+  }
   @AfterEach
   void cleanup() {
-    inventoryRepository.deleteAllByIdInBatch(
-        inventoriesIds
-    );
+    if (inventoriesIds != null && !inventoriesIds.isEmpty()) {
+      inventoryRepository.deleteAllByIdInBatch(inventoriesIds);
 
-    employeeRepository.deleteAllByIdInBatch(
-        List.of(employeeActive.getId())
-    );
-
-    permissionGroupRepository.deleteAllByIdInBatch(
-        List.of(permissionGroup.getId())
-    );
-
-    permissionRepository.deleteAllByIdInBatch(
-        List.of(permission.getId())
-    );
-
-    departmentRepository.deleteAllByIdInBatch(
-        List.of(department.getId())
-    );
-
-    ids.clear();
+      inventoriesIds.clear();
+    }
   }
 
   private String generateJwt(EmployeeEntity employee) {
@@ -138,14 +126,17 @@ class InventoryControllerTests {
   ) {
     InventoryEntity inventory = new InventoryEntity();
 
-    inventoriesIds.add(inventory.getId());
     inventory.setName(name);
     inventory.setDepartment(department);
     inventory.setOwnerEmployee(employeeActive);
     inventory.setStatus(InventoryStatusEnum.UNDER_REVIEW);
     inventory.setType(InventoryTypeEnum.INPUT);
 
-    return inventoryRepository.save(inventory);
+    inventoryRepository.save(inventory);
+
+    inventoriesIds.add(inventory.getId());
+
+    return inventory;
   }
 
   @Test
