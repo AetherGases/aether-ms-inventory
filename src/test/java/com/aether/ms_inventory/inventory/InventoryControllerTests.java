@@ -33,8 +33,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class InventoryControllerTests {
 
   private static final String REGISTERED_INVENTORY_NAME = "Inventário Registro Teste";
-  private static final String REGISTERED_FILE_NAME = "arquivo-registro-teste.csv";
-  private static final String REGISTERED_FILE_PATH = "/uploads/arquivo-registro-teste.csv";
+  private static final String REGISTERED_FILE_NAME = "arquivo-registro-teste.xlsx";
+  private static final String REGISTERED_FILE_PATH = "https://cloudinary/arquivo-registro-teste.xlsx";
 
   @Autowired
   private MockMvc mockMvc;
