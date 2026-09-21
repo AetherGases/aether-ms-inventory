@@ -20,17 +20,21 @@ public class PermissionEntity {
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Integer id;
 
-  @Column(length = AetherConstants.MAX_PERMISSION_NAME_LENGTH, nullable = false)
+  @Column(length = AetherConstants.MAX_PERMISSION_NAME_LENGTH, nullable = false, unique = true)
   private String name;
 
   @Column(length = AetherConstants.MAX_PERMISSION_DESCRIPTION_LENGTH)
   private String description;
 
+  @Column(length = AetherConstants.MAX_PERMISSION_URL_LENGTH)
+  private String url;
+
   @ManyToMany(mappedBy = "permissions")
   private List<PermissionGroupEntity> permissionGroups;
 
-  public PermissionEntity(String name, String description) {
+  public PermissionEntity(String name, String description, String url) {
     this.name = name;
     this.description = description;
+    this.url = url;
   }
 }

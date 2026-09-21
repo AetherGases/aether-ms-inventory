@@ -21,6 +21,20 @@ CREATE TYPE EMPLOYEE_STATUS AS ENUM(
 	'IN_VACATION'
 );
 
+CREATE TYPE INVENTORY_STATUS AS ENUM(
+    'UNDER_REVIEW',
+    'APPROVED',
+    'REJECTED',
+    'PROCESSING',
+    'PROCESSING_FAILED',
+    'REQUESTED',
+    'ISSUED'
+);
+
+CREATE TYPE INVENTORY_TYPE AS ENUM(
+    'INPUT',
+    'OUTPUT'
+);
 -- =========================================================
 -- Tabelas administrativas / institucionais
 -- =========================================================
@@ -111,6 +125,8 @@ CREATE TABLE department (
 CREATE TABLE permission_group (
                                   id SERIAL,
                                   description VARCHAR(150) NOT NULL,
+                                  created_at TIMESTAMP DEFAULT current_timestamp,
+                                  id_enterprise INTEGER,
                                   CONSTRAINT pk_permission_group PRIMARY KEY (id)
 );
 
@@ -118,11 +134,16 @@ CREATE TABLE permission (
                             id SERIAL,
                             name VARCHAR(150) NOT NULL,
                             description VARCHAR(150),
+                            url VARCHAR(50) NOT NULL,
+                            created_at TIMESTAMP DEFAULT current_timestamp,
+                            updated_at TIMESTAMP,
                             CONSTRAINT pk_permission PRIMARY KEY (id)
 );
 
 CREATE TABLE permission_group_permission (
                                              id SERIAL,
+                                             created_at TIMESTAMP DEFAULT current_timestamp,
+                                             updated_at TIMESTAMP,
                                              id_permission INTEGER,
                                              id_permission_group INTEGER,
                                              CONSTRAINT pk_permission_group_permission PRIMARY KEY (id),
@@ -217,6 +238,8 @@ CREATE TABLE inventory (
                            consolidation_approach VARCHAR(100),
                            inventorying_period_start DATE,
                            inventorying_period_end DATE CHECK (inventorying_period_end >= inventorying_period_start),
+                           status INVENTORY_STATUS NOT NULL,
+                           type INVENTORY_TYPE NOT NULL,
                            created_at TIMESTAMP DEFAULT current_timestamp,
                            updated_at TIMESTAMP,
                            id_department INTEGER,
@@ -289,6 +312,10 @@ ALTER TABLE department
     ADD CONSTRAINT fk_department_unit
         FOREIGN KEY (id_unit) REFERENCES unit (id)
             ON DELETE RESTRICT;
+
+ALTER TABLE permission_group
+    ADD CONSTRAINT fk_permission_group_enterprise
+        FOREIGN KEY (id_enterprise) REFERENCES enterprise (id);
 
 ALTER TABLE permission_group_permission
     ADD CONSTRAINT fk_permission_group_permission_permission
@@ -378,6 +405,7 @@ CREATE INDEX idx_payment_id_plan_subscription ON payment (id_plan_subscription);
 CREATE INDEX idx_unit_id_enterprise ON unit (id_enterprise);
 CREATE INDEX idx_unit_id_address ON unit (id_address);
 CREATE INDEX idx_department_id_unit ON department (id_unit);
+CREATE INDEX idx_permission_group_id_enterprise ON permission_group (id_enterprise);
 CREATE INDEX idx_permission_group_permission_id_permission ON permission_group_permission (id_permission);
 CREATE INDEX idx_permission_group_permission_id_permission_group ON permission_group_permission (id_permission_group);
 CREATE INDEX idx_parana_seal_forecast_id_unit ON parana_seal_forecast (id_unit);

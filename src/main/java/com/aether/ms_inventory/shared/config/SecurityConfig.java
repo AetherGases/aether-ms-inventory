@@ -1,5 +1,6 @@
 package com.aether.ms_inventory.shared.config;
 
+import com.aether.ms_inventory.shared.security.PermissionAuthorizationManager;
 import com.aether.ms_inventory.shared.security.jwt.JwtTokenFilter;
 import com.aether.ms_inventory.shared.security.jwt.JwtTokenProvider;
 import jakarta.servlet.http.HttpServletResponse;
@@ -37,7 +38,7 @@ public class SecurityConfig {
   }
 
   @Bean
-  SecurityFilterChain securityFilterChain(HttpSecurity http){
+  SecurityFilterChain securityFilterChain(HttpSecurity http, PermissionAuthorizationManager permissionManager){
     JwtTokenFilter customFilter = new JwtTokenFilter(tokenProvider, handlerExceptionResolver);
 
     return http
@@ -50,17 +51,12 @@ public class SecurityConfig {
         .authorizeHttpRequests(
             authorizeHttpRequests -> authorizeHttpRequests
                 .requestMatchers(
-                    "/api/auth/login",
-                    "/api/auth/refresh/**",
-                    "/api/auth/register",
-                    "/api/auth/reset-password/send-code",
-                    "/api/auth/reset-password/change-password",
                     "/swagger-ui/**",
                     "/v3/api-docs/**"
                 ).permitAll()
                 .requestMatchers(
                     "/api/**"
-                ).authenticated()
+                ).access(permissionManager)
                 .requestMatchers("/users").denyAll()
 
         ).exceptionHandling(exception -> exception

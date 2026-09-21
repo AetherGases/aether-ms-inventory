@@ -7,6 +7,8 @@ public final class AetherConstants {
   public static final int MIN_AGE = 18;
 
   public static final int KEY_LENGTH = 36;
+  public static final int DEFAULT_TAKE = 6;
+  public static final int MAX_TAKE = 6;
 
   // Common
   public static final int ZIP_CODE_LENGTH = 8;
@@ -70,6 +72,9 @@ public final class AetherConstants {
   public static final int MAX_PERMISSION_DESCRIPTION_LENGTH = 150;
   public static final int MIN_PERMISSION_DESCRIPTION_LENGTH = 3;
 
+  public static final int MAX_PERMISSION_URL_LENGTH = 50;
+  public static final int MIN_PERMISSION_URL_LENGTH = 1;
+
   // Storage File
 
   public static final int MAX_STORAGE_FILE_NAME_LENGTH = 150;
@@ -114,6 +119,7 @@ public final class AetherConstants {
 
   public static final int MAX_INVENTORY_CONSOLIDATION_APPROACH_LENGTH = 100;
   public static final int MIN_INVENTORY_CONSOLIDATION_APPROACH_LENGTH = 3;
+
 
   // Emission
 
