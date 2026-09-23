@@ -1,6 +1,8 @@
 package com.aether.ms_inventory.inventory.services;
 
+import com.aether.ms_inventory.inventory.dto.input.FindManyPendingInventoriesInputDTO;
 import com.aether.ms_inventory.inventory.dto.input.FindMyInventoriesHistoryInputDTO;
+import com.aether.ms_inventory.inventory.dto.output.FindManyPendingInventoriesOutputDTO;
 import com.aether.ms_inventory.inventory.dto.output.FindMyInventoriesHistoryOutputDTO;
 import com.aether.ms_inventory.inventory.mappers.InventoryMapper;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.DepartmentEntity;
@@ -43,5 +45,11 @@ public class InventoryService {
         inventories,
         count
     );
+  }
+
+  public FindManyPendingInventoriesOutputDTO findManyPendingReports(
+      FindManyPendingInventoriesInputDTO input
+  ){
+
   }
 }

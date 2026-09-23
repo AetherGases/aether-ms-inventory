@@ -1,5 +1,6 @@
 package com.aether.ms_inventory.inventory.controllers;
 
+import com.aether.ms_inventory.inventory.dto.output.FindManyPendingInventoriesOutputDTO;
 import com.aether.ms_inventory.inventory.dto.output.FindMyInventoriesHistoryOutputDTO;
 import com.aether.ms_inventory.inventory.dto.query_params.FindMyInventoriesQueryParamsDTO;
 import com.aether.ms_inventory.inventory.mappers.InventoryMapper;
@@ -24,6 +25,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class InventoryController implements InventoryControllerDocs {
   private final InventoryService inventoryService;
 
+  @GetMapping
+  public ResponseEntity<FindManyPendingInventoriesOutputDTO> findManyPendingInventories(){
+    return new ResponseEntity<>(
+        this.inventoryService.findManyPendingReports(
+
+        ),
+        HttpStatus.OK
+    );
+  }
   @Override
   @GetMapping("/mine")
   public ResponseEntity<FindMyInventoriesHistoryOutputDTO> findMyInventoriesHistory(
