@@ -71,4 +71,19 @@ public class InventoryEntity extends DateBaseEntity{
   @OneToOne
   @JoinColumn(name = "id_storage_file")
   private StorageFileEntity storageFile;
+
+  public InventoryEntity(String name, InventoryTypeEnum type) {
+    this.name = name;
+    this.status = InventoryStatusEnum.UNDER_REVIEW;
+    this.type = type;
+  }
+
+  public InventoryEntity(String name, InventoryTypeEnum type, EmployeeEntity ownerEmployee, StorageFileEntity storageFile) {
+    this.name = name;
+    this.status = InventoryStatusEnum.UNDER_REVIEW;
+    this.type = type;
+    this.ownerEmployee = ownerEmployee;
+    this.department = ownerEmployee.getDepartment();
+    this.storageFile = storageFile;
+  }
 }
