@@ -85,7 +85,7 @@ class InventoryControllerTests {
     permissionGroupRepository.save(permissionGroup);
 
     employeeActive = new EmployeeEntity(
-        "12345678909",
+        "12345678912",
         "Teste",
         "test@test1.com",
         "senhaHash",
@@ -525,6 +525,198 @@ class InventoryControllerTests {
     mockMvc.perform(
             post("/api/inventories")
                 .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isBadRequest());
+  }
+
+  // ---------------------------------------------------------------------------
+  // GET /api/inventories/pending
+  // ---------------------------------------------------------------------------
+
+  @Test
+  @DisplayName("Should return 200 and pending inventories")
+  void findManyPendingInventoriesSuccess() throws Exception {
+
+    createInventory("Inventário Pendente");
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/pending")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.inventories").isArray())
+        .andExpect(jsonPath("$.inventories.length()").value(1))
+        .andExpect(jsonPath("$.totalCount").value(1));
+  }
+
+  @Test
+  @DisplayName("Should return 200 when no query parameters are provided")
+  void findManyPendingInventoriesWithoutQueryParameters() throws Exception {
+
+    createInventory("Inventário Pendente");
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/pending")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.inventories").isArray())
+        .andExpect(jsonPath("$.totalCount").value(1));
+  }
+
+  @Test
+  @DisplayName("Should filter pending inventories by name")
+  void findManyPendingInventoriesByName() throws Exception {
+
+    createInventory("Inventário A");
+    createInventory("Inventário B");
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/pending")
+                .param("name", "Inventário A")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.inventories").isArray())
+        .andExpect(jsonPath("$.inventories.length()").value(1))
+        .andExpect(jsonPath("$.totalCount").value(1));
+  }
+
+  @Test
+  @DisplayName("Should return pending inventories from every employee in the department")
+  void findManyPendingInventoriesIncludesOtherEmployees() throws Exception {
+
+    createInventory("Inventário Meu");
+    createInventory("Inventário De Outro", employeeOther);
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/pending")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.inventories.length()").value(2))
+        .andExpect(jsonPath("$.totalCount").value(2));
+  }
+
+  @Test
+  @DisplayName("Should apply take parameter")
+  void findManyPendingInventoriesWithTake() throws Exception {
+
+    createInventory("Inventário A");
+    createInventory("Inventário B");
+    createInventory("Inventário C");
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/pending")
+                .param("take", "2")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.inventories").isArray())
+        .andExpect(jsonPath("$.inventories.length()").value(2))
+        .andExpect(jsonPath("$.totalCount").value(3));
+  }
+
+  @Test
+  @DisplayName("Should apply skip and take parameters")
+  void findManyPendingInventoriesWithSkipAndTake() throws Exception {
+
+    createInventory("Inventário A");
+    createInventory("Inventário B");
+    createInventory("Inventário C");
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/pending")
+                .param("skip", "1")
+                .param("take", "1")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.inventories").isArray())
+        .andExpect(jsonPath("$.inventories.length()").value(1))
+        .andExpect(jsonPath("$.totalCount").value(3));
+  }
+
+  @Test
+  @DisplayName("Should return 200 and empty list when there are no pending inventories")
+  void findManyPendingInventoriesEmpty() throws Exception {
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/pending")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.inventories").isEmpty())
+        .andExpect(jsonPath("$.totalCount").value(0));
+  }
+
+  @Test
+  @DisplayName("Should return 401 when JWT is not provided")
+  void findManyPendingInventoriesWithoutAuthentication() throws Exception {
+
+    mockMvc.perform(
+            get("/api/inventories/pending")
+        )
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  @DisplayName("Should return 401 when JWT is invalid")
+  void findManyPendingInventoriesWithInvalidToken() throws Exception {
+
+    mockMvc.perform(
+            get("/api/inventories/pending")
+                .header(
+                    "Authorization",
+                    "Bearer token-invalido"
+                )
+        )
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  @DisplayName("Should return 400 when take is less than minimum")
+  void findManyPendingInventoriesWithInvalidTakeMin() throws Exception {
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/pending")
+                .param("take", "0")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  @DisplayName("Should return 400 when take is greater than maximum")
+  void findManyPendingInventoriesWithInvalidTakeMax() throws Exception {
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/pending")
+                .param(
+                    "take",
+                    String.valueOf(
+                        com.aether.ms_inventory.shared.AetherConstants.MAX_TAKE + 1
+                    )
+                )
                 .header("Authorization", "Bearer " + token)
         )
         .andExpect(status().isBadRequest());

@@ -6,18 +6,12 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 
-public record FindMyInventoriesQueryParamsDTO(
+public record FindManyPendingInventoriesQueryParamsDTO(
     @Schema(
         description = "O filtro de nome dos relatórios",
         example = "Inventário"
     )
     String name,
-
-    @Schema(
-        description = "O filtro de status a ser aplicado nos relatórios",
-        example = "UNDER_REVIEW"
-    )
-    InventoryStatusEnum status,
 
     @Min(value = 1, message = "{validation.take.min-value}")
     @Max(value = AetherConstants.MAX_TAKE, message = "{validation.take.max-value}")

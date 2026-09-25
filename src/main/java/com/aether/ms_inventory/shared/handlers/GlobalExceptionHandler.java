@@ -6,6 +6,7 @@ import com.aether.ms_inventory.shared.services.MessageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -134,5 +135,25 @@ public class GlobalExceptionHandler {
         ),
         HttpStatus.FORBIDDEN
     );
+  }
+
+  @ExceptionHandler(Exception.class)
+  public ResponseEntity<ExceptionOutputDTO> handleException(Exception ex){
+    return new ResponseEntity<>(
+        new ExceptionOutputDTO(
+            ex.getMessage(),
+            HttpStatus.INTERNAL_SERVER_ERROR
+        ),
+        HttpStatus.INTERNAL_SERVER_ERROR
+    );
+  }
+
+  @ExceptionHandler(HttpMessageNotReadableException.class)
+  public ResponseEntity<ExceptionOutputDTO> handleUnreadableBody(HttpMessageNotReadableException ex) {
+    ExceptionOutputDTO error = new ExceptionOutputDTO(
+        "Corpo da requisição inválido ou malformado",
+        HttpStatus.BAD_REQUEST
+    );
+    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
   }
 }

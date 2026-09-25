@@ -1,7 +1,9 @@
 package com.aether.ms_inventory.inventory;
 
+import com.aether.ms_inventory.inventory.dto.input.FindManyPendingInventoriesInputDTO;
 import com.aether.ms_inventory.inventory.dto.input.FindMyInventoriesHistoryInputDTO;
 import com.aether.ms_inventory.inventory.dto.input.RegisterInventoryInputDTO;
+import com.aether.ms_inventory.inventory.dto.output.FindManyPendingInventoriesOutputDTO;
 import com.aether.ms_inventory.inventory.dto.output.FindMyInventoriesHistoryOutputDTO;
 import com.aether.ms_inventory.inventory.dto.output.RegisterInventoryOutputDTO;
 import com.aether.ms_inventory.inventory.services.InventoryService;
@@ -355,6 +357,220 @@ public class InventoryServiceTests {
     assertThrows(
         RuntimeException.class,
         () -> inventoryService.registerInventory(input)
+    );
+
+    verifyNoInteractions(inventoryRepository);
+  }
+
+  // ---------------------------------------------------------------------------
+  // findManyPendingReports
+  // ---------------------------------------------------------------------------
+
+  @Test
+  @DisplayName("Should return pending inventories with pagination")
+  void findManyPendingReports() {
+    Integer userId = 1;
+    Integer departmentId = 10;
+
+    FindManyPendingInventoriesInputDTO input =
+        new FindManyPendingInventoriesInputDTO(
+            userId,
+            null,
+            0,
+            10
+        );
+
+    EmployeeEntity employee = mock(EmployeeEntity.class);
+
+    DepartmentEntity department = new DepartmentEntity();
+    department.setId(departmentId);
+
+    when(employee.getDepartment()).thenReturn(department);
+
+    StorageFileEntity storageFile = new StorageFileEntity(
+        "arquivo.csv",
+        "/uploads/arquivo.csv"
+    );
+
+    InventoryEntity inventory = new InventoryEntity(
+        "Inventário Teste",
+        InventoryTypeEnum.INPUT,
+        employee,
+        storageFile
+    );
+
+    List<InventoryEntity> inventories = List.of(inventory);
+
+    when(getUserInfosService.getDepartment(userId))
+        .thenReturn(department);
+
+    when(inventoryRepository.findWithPagination(
+        any(Specification.class),
+        eq(input.skip()),
+        eq(input.take())
+    )).thenReturn(inventories);
+
+    when(inventoryRepository.count(any(Specification.class)))
+        .thenReturn(1L);
+
+    FindManyPendingInventoriesOutputDTO output =
+        inventoryService.findManyPendingReports(input);
+
+    assertEquals(1, output.inventories().size());
+    assertEquals(1L, output.totalCount());
+
+    verify(getUserInfosService).getDepartment(userId);
+
+    verify(inventoryRepository).findWithPagination(
+        any(Specification.class),
+        eq(input.skip()),
+        eq(input.take())
+    );
+
+    verify(inventoryRepository).count(any(Specification.class));
+  }
+
+  @Test
+  @DisplayName("Should return an empty list when there are no pending inventories")
+  void findManyPendingReportsEmpty() {
+    Integer userId = 1;
+    Integer departmentId = 10;
+
+    FindManyPendingInventoriesInputDTO input =
+        new FindManyPendingInventoriesInputDTO(
+            userId,
+            null,
+            0,
+            10
+        );
+
+    DepartmentEntity department = new DepartmentEntity();
+    department.setId(departmentId);
+
+    when(getUserInfosService.getDepartment(userId))
+        .thenReturn(department);
+
+    when(inventoryRepository.findWithPagination(
+        any(Specification.class),
+        eq(input.skip()),
+        eq(input.take())
+    )).thenReturn(List.of());
+
+    when(inventoryRepository.count(any(Specification.class)))
+        .thenReturn(0L);
+
+    FindManyPendingInventoriesOutputDTO output =
+        inventoryService.findManyPendingReports(input);
+
+    assertEquals(0, output.inventories().size());
+    assertEquals(0L, output.totalCount());
+
+    verify(inventoryRepository).findWithPagination(
+        any(Specification.class),
+        eq(input.skip()),
+        eq(input.take())
+    );
+
+    verify(inventoryRepository).count(any(Specification.class));
+  }
+
+  @Test
+  @DisplayName("Should apply pagination parameters correctly")
+  void findManyPendingReportsPagination() {
+    Integer userId = 1;
+    Integer departmentId = 10;
+
+    Integer skip = 20;
+    Integer take = 10;
+
+    FindManyPendingInventoriesInputDTO input =
+        new FindManyPendingInventoriesInputDTO(
+            userId,
+            null,
+            skip,
+            take
+        );
+
+    DepartmentEntity department = new DepartmentEntity();
+    department.setId(departmentId);
+
+    when(getUserInfosService.getDepartment(userId))
+        .thenReturn(department);
+
+    when(inventoryRepository.findWithPagination(
+        any(Specification.class),
+        eq(skip),
+        eq(take)
+    )).thenReturn(List.of());
+
+    when(inventoryRepository.count(any(Specification.class)))
+        .thenReturn(0L);
+
+    inventoryService.findManyPendingReports(input);
+
+    verify(inventoryRepository).findWithPagination(
+        any(Specification.class),
+        eq(skip),
+        eq(take)
+    );
+  }
+
+  @Test
+  @DisplayName("Should count pending inventories using the same specification")
+  void findManyPendingReportsCount() {
+    Integer userId = 1;
+    Integer departmentId = 10;
+
+    FindManyPendingInventoriesInputDTO input =
+        new FindManyPendingInventoriesInputDTO(
+            userId,
+            null,
+            0,
+            10
+        );
+
+    DepartmentEntity department = new DepartmentEntity();
+    department.setId(departmentId);
+
+    when(getUserInfosService.getDepartment(userId))
+        .thenReturn(department);
+
+    when(inventoryRepository.findWithPagination(
+        any(Specification.class),
+        any(),
+        any()
+    )).thenReturn(List.of());
+
+    when(inventoryRepository.count(any(Specification.class)))
+        .thenReturn(5L);
+
+    FindManyPendingInventoriesOutputDTO output =
+        inventoryService.findManyPendingReports(input);
+
+    assertEquals(5L, output.totalCount());
+
+    verify(inventoryRepository).count(any(Specification.class));
+  }
+
+  @Test
+  @DisplayName("Should not query inventories when the department lookup fails")
+  void findManyPendingReportsWhenDepartmentLookupFails() {
+    Integer userId = 1;
+
+    FindManyPendingInventoriesInputDTO input =
+        new FindManyPendingInventoriesInputDTO(
+            userId,
+            null,
+            0,
+            10
+        );
+
+    when(getUserInfosService.getDepartment(userId))
+        .thenThrow(new RuntimeException("Department not found"));
+
+    assertThrows(
+        RuntimeException.class,
+        () -> inventoryService.findManyPendingReports(input)
     );
 
     verifyNoInteractions(inventoryRepository);

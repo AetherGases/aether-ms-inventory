@@ -3,6 +3,7 @@ package com.aether.ms_inventory.inventory.controllers;
 import com.aether.ms_inventory.inventory.dto.output.FindManyPendingInventoriesOutputDTO;
 import com.aether.ms_inventory.inventory.dto.output.FindMyInventoriesHistoryOutputDTO;
 import com.aether.ms_inventory.inventory.dto.output.RegisterInventoryOutputDTO;
+import com.aether.ms_inventory.inventory.dto.query_params.FindManyPendingInventoriesQueryParamsDTO;
 import com.aether.ms_inventory.inventory.dto.query_params.FindMyInventoriesQueryParamsDTO;
 import com.aether.ms_inventory.inventory.dto.request.RegisterInventoryRequestDTO;
 import com.aether.ms_inventory.inventory.mappers.InventoryMapper;
@@ -24,15 +25,6 @@ import org.springframework.web.bind.annotation.*;
 public class InventoryController implements InventoryControllerDocs {
   private final InventoryService inventoryService;
 
-  @GetMapping
-  public ResponseEntity<FindManyPendingInventoriesOutputDTO> findManyPendingInventories(){
-    return new ResponseEntity<>(
-        this.inventoryService.findManyPendingReports(
-
-        ),
-        HttpStatus.OK
-    );
-  }
   @Override
   @PostMapping()
   public ResponseEntity<RegisterInventoryOutputDTO> registerInventory(
@@ -72,6 +64,25 @@ public class InventoryController implements InventoryControllerDocs {
                 user.getId(),
                 query
             )
+        ),
+        HttpStatus.OK
+    );
+  }
+
+  @Override
+  @GetMapping("/pending")
+  public ResponseEntity<FindManyPendingInventoriesOutputDTO> findManyPendingInventories(
+      @ModelAttribute
+      @Valid
+      FindManyPendingInventoriesQueryParamsDTO query,
+
+      Authentication authentication
+  ){
+    CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
+
+    return new ResponseEntity<>(
+        this.inventoryService.findManyPendingReports(
+            InventoryMapper.convertFindManyPendingInventoryQueryToInput(user.getId(), query)
         ),
         HttpStatus.OK
     );
