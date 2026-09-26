@@ -31,10 +31,19 @@ public class PermissionGroupEntity {
   )
   private List<PermissionEntity> permissions;
 
-  @ManyToMany(mappedBy = "permissionGroups")
+  @ManyToOne()
+  @JoinColumn(name = "id_enterprise")
+  private EnterpriseEntity enterprise;
+
+  @OneToMany(mappedBy = "permissionGroup")
   private List<EmployeeEntity> employees;
 
   public PermissionGroupEntity(String description) {
     this.description = description;
+  }
+
+  public PermissionGroupEntity(String description, EnterpriseEntity enterprise) {
+    this.description = description;
+    this.enterprise = enterprise;
   }
 }
