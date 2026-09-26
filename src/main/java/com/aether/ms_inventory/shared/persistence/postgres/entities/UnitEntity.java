@@ -48,4 +48,11 @@ public class UnitEntity extends DateBaseEntity{
 
   @OneToMany(mappedBy = "unit")
   private List<ParanaSealEntity> paranaSeals;
+
+  public UnitEntity(String cnae, String cnpj, EnterpriseEntity enterprise) {
+    this.cnae = cnae;
+    this.cnpj = cnpj;
+    this.isActive = true;
+    this.enterprise = enterprise;
+  }
 }
