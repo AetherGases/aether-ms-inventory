@@ -46,6 +46,15 @@ class InventoryControllerTests {
   private StorageFileRepository storageFileRepository;
 
   @Autowired
+  private EnterpriseRepository enterpriseRepository;
+
+  @Autowired
+  private UnitRepository unitRepository;
+
+  @Autowired
+  private DepartmentRepository departmentRepository;
+
+  @Autowired
   private EmployeeRepository employeeRepository;
 
   @Autowired
@@ -54,24 +63,44 @@ class InventoryControllerTests {
   @Autowired
   private PermissionGroupRepository permissionGroupRepository;
 
-  @Autowired
-  private DepartmentRepository departmentRepository;
 
   @Autowired
   private JwtTokenProvider jwtTokenProvider;
+  private PermissionGroupEntity permissionGroup;
+  private EnterpriseEntity enterprise;
+  private UnitEntity unit;
+  private DepartmentEntity department;
 
   private EmployeeEntity employeeActive;
   private EmployeeEntity employeeOther;
   private PermissionEntity permission;
-  private PermissionGroupEntity permissionGroup;
-  private DepartmentEntity department;
   private List<Integer> inventoriesIds = new ArrayList<>();
 
   @BeforeAll
   void beforeAll() {
-    department = new DepartmentEntity();
-    department.setName("Departamento Teste");
-    department = departmentRepository.save(department);
+    enterprise = new EnterpriseEntity(
+        "teste",
+        "teste s.a.",
+        "73414740000148"
+    );
+
+    enterpriseRepository.save(enterprise);
+
+    unit = new UnitEntity(
+        "1234567",
+        "89307523000199",
+        enterprise
+    );
+
+    unitRepository.save(unit);
+
+    department = new DepartmentEntity(
+        "test depto",
+        "departamento de teste",
+        unit
+    );
+
+    departmentRepository.save(department);
 
     permission = new PermissionEntity(
         "Relatórios",
@@ -91,10 +120,10 @@ class InventoryControllerTests {
         "senhaHash",
         "11977394517",
         EmployeeStatusEnum.ACTIVE,
-        List.of(permissionGroup)
+        permissionGroup,
+        department
     );
 
-    employeeActive.setDepartment(department);
     employeeActive = employeeRepository.save(employeeActive);
 
     // Segundo funcionário, usado para garantir que um usuário não enxerga os inventários de outro
@@ -105,10 +134,10 @@ class InventoryControllerTests {
         "senhaHash",
         "11988887777",
         EmployeeStatusEnum.ACTIVE,
-        List.of(permissionGroup)
+        permissionGroup,
+        department
     );
 
-    employeeOther.setDepartment(department);
     employeeOther = employeeRepository.save(employeeOther);
   }
 
