@@ -1,10 +1,13 @@
 package com.aether.ms_inventory.inventory.services;
 
+import com.aether.ms_inventory.inventory.dto.input.FindManyPendingInventoriesInputDTO;
 import com.aether.ms_inventory.inventory.dto.input.FindMyInventoriesHistoryInputDTO;
+import com.aether.ms_inventory.inventory.dto.output.FindManyPendingInventoriesOutputDTO;
 import com.aether.ms_inventory.inventory.dto.input.RegisterInventoryInputDTO;
 import com.aether.ms_inventory.inventory.dto.output.FindMyInventoriesHistoryOutputDTO;
 import com.aether.ms_inventory.inventory.dto.output.RegisterInventoryOutputDTO;
 import com.aether.ms_inventory.inventory.mappers.InventoryMapper;
+import com.aether.ms_inventory.shared.enums.InventoryStatusEnum;
 import com.aether.ms_inventory.shared.enums.InventoryTypeEnum;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.DepartmentEntity;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.EmployeeEntity;
@@ -77,5 +80,27 @@ public class InventoryService {
         inventories,
         count
     );
+  }
+
+  @Transactional(readOnly = true)
+  public FindManyPendingInventoriesOutputDTO findManyPendingReports(
+      FindManyPendingInventoriesInputDTO input
+  ){
+    DepartmentEntity department = getUserInfosService.getDepartment(input.userId());
+
+    Specification<InventoryEntity> spec = Specification
+        .where(InventorySpecification.withName(input.name()))
+        .and(InventorySpecification.withStatus(InventoryStatusEnum.UNDER_REVIEW))
+        .and(InventorySpecification.withDepartment(department.getId()));
+
+    List<InventoryEntity> inventories = inventoryRepository.findWithPagination(
+        spec,
+        input.skip(),
+        input.take()
+    );
+
+    long count = inventoryRepository.count(spec);
+
+    return InventoryMapper.convertFindManyPendingEntitiesToOutput(inventories, count);
   }
 }

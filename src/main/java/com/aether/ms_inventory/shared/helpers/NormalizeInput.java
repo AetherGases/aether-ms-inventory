@@ -19,16 +19,10 @@ public class NormalizeInput {
     return removeBlank(email).toLowerCase();
   }
 
-  public static String password(String password){
-    if (password == null) return password;
+  public static String url(String url){
+    if (url == null) return url;
 
-    return removeBlank(password);
-  }
-
-  public static String phone(String phone) {
-    if (phone == null) return phone;
-
-    return removeBlank(phone).replaceAll("\\D", "");
+    return removeBlank(url);
   }
 
   private static String removeBlank(String input){

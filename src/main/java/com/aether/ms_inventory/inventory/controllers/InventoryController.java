@@ -1,7 +1,9 @@
 package com.aether.ms_inventory.inventory.controllers;
 
+import com.aether.ms_inventory.inventory.dto.output.FindManyPendingInventoriesOutputDTO;
 import com.aether.ms_inventory.inventory.dto.output.FindMyInventoriesHistoryOutputDTO;
 import com.aether.ms_inventory.inventory.dto.output.RegisterInventoryOutputDTO;
+import com.aether.ms_inventory.inventory.dto.query_params.FindManyPendingInventoriesQueryParamsDTO;
 import com.aether.ms_inventory.inventory.dto.query_params.FindMyInventoriesQueryParamsDTO;
 import com.aether.ms_inventory.inventory.dto.request.RegisterInventoryRequestDTO;
 import com.aether.ms_inventory.inventory.mappers.InventoryMapper;
@@ -62,6 +64,25 @@ public class InventoryController implements InventoryControllerDocs {
                 user.getId(),
                 query
             )
+        ),
+        HttpStatus.OK
+    );
+  }
+
+  @Override
+  @GetMapping("/pending")
+  public ResponseEntity<FindManyPendingInventoriesOutputDTO> findManyPendingInventories(
+      @ModelAttribute
+      @Valid
+      FindManyPendingInventoriesQueryParamsDTO query,
+
+      Authentication authentication
+  ){
+    CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
+
+    return new ResponseEntity<>(
+        this.inventoryService.findManyPendingReports(
+            InventoryMapper.convertFindManyPendingInventoryQueryToInput(user.getId(), query)
         ),
         HttpStatus.OK
     );

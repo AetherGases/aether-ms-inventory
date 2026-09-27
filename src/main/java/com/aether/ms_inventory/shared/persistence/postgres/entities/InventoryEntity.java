@@ -86,4 +86,5 @@ public class InventoryEntity extends DateBaseEntity{
     this.department = ownerEmployee.getDepartment();
     this.storageFile = storageFile;
   }
+
 }
