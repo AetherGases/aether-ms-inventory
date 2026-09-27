@@ -6,6 +6,7 @@ import com.aether.ms_inventory.shared.enums.InventoryTypeEnum;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.*;
 import com.aether.ms_inventory.shared.persistence.postgres.repositories.*;
 import com.aether.ms_inventory.shared.security.jwt.JwtTokenProvider;
+import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -15,11 +16,13 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -35,6 +38,13 @@ class InventoryControllerTests {
   private static final String REGISTERED_INVENTORY_NAME = "Inventário Registro Teste";
   private static final String REGISTERED_FILE_NAME = "arquivo-registro-teste.xlsx";
   private static final String REGISTERED_FILE_PATH = "https://cloudinary/arquivo-registro-teste.xlsx";
+  private static final String ENTERPRISE_CNPJ = "73414740000148";
+  private static final String UNIT_CNPJ = "89307523000199";
+  private static final String EMPLOYEE_ACTIVE_EMAIL = "test@test1.com";
+  private static final String EMPLOYEE_OTHER_EMAIL = "test@test2.com";
+  private static final String PERMISSION_GROUP_NAME = "Funcionário";
+  private static final String PERMISSION_NAME = "Relatórios";
+  private static final String DEPARTMENT_NAME = "test depto";
 
   @Autowired
   private MockMvc mockMvc;
@@ -63,9 +73,9 @@ class InventoryControllerTests {
   @Autowired
   private PermissionGroupRepository permissionGroupRepository;
 
-
   @Autowired
   private JwtTokenProvider jwtTokenProvider;
+
   private PermissionGroupEntity permissionGroup;
   private EnterpriseEntity enterprise;
   private UnitEntity unit;
@@ -74,28 +84,35 @@ class InventoryControllerTests {
   private EmployeeEntity employeeActive;
   private EmployeeEntity employeeOther;
   private PermissionEntity permission;
-  private List<Integer> inventoriesIds = new ArrayList<>();
+
+  // IDs criados durante o teste atual, sempre removidos no @AfterEach
+  private final List<Integer> inventoriesIds = new ArrayList<>();
+  private final List<Integer> storageFileIds = new ArrayList<>();
 
   @BeforeAll
   void beforeAll() {
+    // Remove resíduos de execuções anteriores que falharam antes de concluir o afterAll,
+    // evitando duplicidade de CNPJ e FKs pendentes (employee <- inventory)
+    cleanupLeftoverTestData();
+
     enterprise = new EnterpriseEntity(
         "teste",
         "teste s.a.",
-        "73414740000148"
+        ENTERPRISE_CNPJ
     );
 
     enterpriseRepository.save(enterprise);
 
     unit = new UnitEntity(
         "1234567",
-        "89307523000199",
+        UNIT_CNPJ,
         enterprise
     );
 
     unitRepository.save(unit);
 
     department = new DepartmentEntity(
-        "test depto",
+        DEPARTMENT_NAME,
         "departamento de teste",
         unit
     );
@@ -103,20 +120,20 @@ class InventoryControllerTests {
     departmentRepository.save(department);
 
     permission = new PermissionEntity(
-        "Relatórios",
+        PERMISSION_NAME,
         null,
         "^.*/inventories.*$"
     );
     permissionRepository.save(permission);
 
-    permissionGroup = new PermissionGroupEntity("Funcionário");
+    permissionGroup = new PermissionGroupEntity(PERMISSION_GROUP_NAME);
     permissionGroup.setPermissions(List.of(permission));
     permissionGroupRepository.save(permissionGroup);
 
     employeeActive = new EmployeeEntity(
         "12345678912",
         "Teste",
-        "test@test1.com",
+        EMPLOYEE_ACTIVE_EMAIL,
         "senhaHash",
         "11977394517",
         EmployeeStatusEnum.ACTIVE,
@@ -130,7 +147,7 @@ class InventoryControllerTests {
     employeeOther = new EmployeeEntity(
         "52998224725",
         "Outro Teste",
-        "test@test2.com",
+        EMPLOYEE_OTHER_EMAIL,
         "senhaHash",
         "11988887777",
         EmployeeStatusEnum.ACTIVE,
@@ -141,8 +158,78 @@ class InventoryControllerTests {
     employeeOther = employeeRepository.save(employeeOther);
   }
 
+  /**
+   * Remove qualquer dado de uma execução anterior que tenha ficado "preso" no banco
+   * porque a suíte não terminou normalmente (ex.: falha no meio do beforeAll/afterEach).
+   * Sem isso, o CNPJ fixo do enterprise e os relacionamentos de employee/inventory
+   * colidem com os novos dados criados nesta execução.
+   */
+  private void cleanupLeftoverTestData() {
+
+    List<EmployeeEntity> leftoverEmployees = employeeRepository.findAll().stream()
+        .filter(e -> EMPLOYEE_ACTIVE_EMAIL.equals(e.getEmail()) || EMPLOYEE_OTHER_EMAIL.equals(e.getEmail()))
+        .toList();
+
+    List<Integer> leftoverEmployeeIds = leftoverEmployees.stream()
+        .map(EmployeeEntity::getId)
+        .toList();
+
+    // Qualquer inventário pendurado nesses funcionários (criado por createInventory
+    // ou pelo POST) precisa sair antes, senão a FK trava a remoção do employee
+    if (!leftoverEmployeeIds.isEmpty()) {
+      List<Integer> leftoverInventoryIds = inventoryRepository.findAll().stream()
+          .filter(inv -> inv.getOwnerEmployee() != null
+              && leftoverEmployeeIds.contains(inv.getOwnerEmployee().getId()))
+          .map(InventoryEntity::getId)
+          .toList();
+
+      if (!leftoverInventoryIds.isEmpty()) {
+        inventoryRepository.deleteAllByIdInBatch(leftoverInventoryIds);
+      }
+    }
+
+    List<Integer> leftoverFileIds = storageFileRepository.findAll().stream()
+        .filter(f -> REGISTERED_FILE_NAME.equalsIgnoreCase(f.getName()))
+        .map(StorageFileEntity::getId)
+        .toList();
+
+    if (!leftoverFileIds.isEmpty()) {
+      storageFileRepository.deleteAllByIdInBatch(leftoverFileIds);
+    }
+
+    if (!leftoverEmployeeIds.isEmpty()) {
+      employeeRepository.deleteAllByIdInBatch(leftoverEmployeeIds);
+    }
+
+    permissionGroupRepository.findAll().stream()
+        .filter(pg -> PERMISSION_GROUP_NAME.equals(pg.getDescription()))
+        .map(PermissionGroupEntity::getId)
+        .forEach(permissionGroupRepository::deleteById);
+
+    permissionRepository.findAll().stream()
+        .filter(p -> PERMISSION_NAME.equals(p.getName()))
+        .map(PermissionEntity::getId)
+        .forEach(permissionRepository::deleteById);
+
+    departmentRepository.findAll().stream()
+        .filter(d -> DEPARTMENT_NAME.equals(d.getName()))
+        .map(DepartmentEntity::getId)
+        .forEach(departmentRepository::deleteById);
+
+    unitRepository.findAll().stream()
+        .filter(u -> UNIT_CNPJ.equals(u.getCnpj()))
+        .map(UnitEntity::getId)
+        .forEach(unitRepository::deleteById);
+
+    enterpriseRepository.findAll().stream()
+        .filter(e -> ENTERPRISE_CNPJ.equals(e.getCnpj()))
+        .map(EnterpriseEntity::getId)
+        .forEach(enterpriseRepository::deleteById);
+  }
+
   @AfterAll()
-  void afterAll(){
+  void afterAll() {
+
     if (employeeOther != null && employeeOther.getId() != null) {
       employeeRepository.deleteById(employeeOther.getId());
     }
@@ -162,29 +249,28 @@ class InventoryControllerTests {
     if (department != null && department.getId() != null) {
       departmentRepository.deleteById(department.getId());
     }
+
+    if (unit != null && unit.getId() != null) {
+      unitRepository.delete(unit);
+    }
+
+    if (enterprise != null && enterprise.getId() != null) {
+      enterpriseRepository.delete(enterprise);
+    }
   }
 
   @AfterEach
   void cleanup() {
-    // Inventários criados via POST não passam pelo createInventory, então são localizados pelo nome
-    inventoryRepository.findAll().stream()
-        .filter(inventory -> REGISTERED_INVENTORY_NAME.equals(inventory.getName()))
-        .map(InventoryEntity::getId)
-        .forEach(inventoriesIds::add);
-
+    // Deleção em lote (bulk DELETE), sem carregar/gerenciar as entidades na sessão:
+    // evita que um flush acabe validando estado pendente de outros testes.
     if (!inventoriesIds.isEmpty()) {
       inventoryRepository.deleteAllByIdInBatch(inventoriesIds);
-
       inventoriesIds.clear();
     }
 
-    // O arquivo só pode ser removido depois do inventário (FK)
-    List<StorageFileEntity> registeredFiles = storageFileRepository.findAll().stream()
-        .filter(file -> REGISTERED_FILE_NAME.equals(file.getName()))
-        .toList();
-
-    if (!registeredFiles.isEmpty()) {
-      storageFileRepository.deleteAll(registeredFiles);
+    if (!storageFileIds.isEmpty()) {
+      storageFileRepository.deleteAllByIdInBatch(storageFileIds);
+      storageFileIds.clear();
     }
   }
 
@@ -197,16 +283,11 @@ class InventoryControllerTests {
         .accessToken();
   }
 
-  private InventoryEntity createInventory(
-      String name
-  ) {
+  private InventoryEntity createInventory(String name) {
     return createInventory(name, employeeActive);
   }
 
-  private InventoryEntity createInventory(
-      String name,
-      EmployeeEntity owner
-  ) {
+  private InventoryEntity createInventory(String name, EmployeeEntity owner) {
     InventoryEntity inventory = new InventoryEntity();
 
     inventory.setName(name);
@@ -464,7 +545,7 @@ class InventoryControllerTests {
 
     String token = generateJwt(employeeActive);
 
-    mockMvc.perform(
+    MvcResult result = mockMvc.perform(
             post("/api/inventories")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(registerBody(
@@ -477,18 +558,28 @@ class InventoryControllerTests {
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.id").isNumber())
         .andExpect(jsonPath("$.name").value(REGISTERED_INVENTORY_NAME))
-        .andExpect(jsonPath("$.type").value(InventoryTypeEnum.INPUT.name()));
+        .andExpect(jsonPath("$.type").value(InventoryTypeEnum.INPUT.name()))
+        .andExpect(jsonPath("$.storageFile.id").isNumber())
+        .andReturn();
 
-    long inventoriesCount = inventoryRepository.findAll().stream()
-        .filter(inventory -> REGISTERED_INVENTORY_NAME.equals(inventory.getName()))
-        .count();
+    String responseBody = result.getResponse().getContentAsString();
 
-    long filesCount = storageFileRepository.findAll().stream()
-        .filter(file -> REGISTERED_FILE_NAME.equals(file.getName()))
-        .count();
+    int inventoryId = JsonPath.read(responseBody, "$.id");
+    int storageFileId = JsonPath.read(responseBody, "$.storageFile.id");
 
-    assertEquals(1L, inventoriesCount);
-    assertEquals(1L, filesCount);
+    // Garante que o cleanup remova exatamente o que este teste criou,
+    // por ID em vez de por nome (imune a qualquer transformação de string a jusante)
+    inventoriesIds.add(inventoryId);
+    storageFileIds.add(storageFileId);
+
+    InventoryEntity savedInventory = inventoryRepository.findById(inventoryId).orElse(null);
+    StorageFileEntity savedFile = storageFileRepository.findById(storageFileId).orElse(null);
+
+    assertNotNull(savedInventory, "Inventário deveria ter sido persistido no banco");
+    assertNotNull(savedFile, "Arquivo deveria ter sido persistido no banco");
+    assertEquals(REGISTERED_FILE_PATH, savedFile.getPath());
+    assertNotNull(savedInventory.getStorageFile(), "Inventário deveria estar associado ao arquivo");
+    assertEquals(savedFile.getId(), savedInventory.getStorageFile().getId());
   }
 
   @Test

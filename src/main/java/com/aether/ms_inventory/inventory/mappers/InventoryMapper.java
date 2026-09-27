@@ -69,7 +69,7 @@ public class InventoryMapper {
         inventory.getCreatedAt(),
         new RegisterInventoryOutputDTO.StorageFile(
             storageFile.getId(),
-            NormalizeOutput.name(storageFile.getName()),
+            storageFile.getName(),
             NormalizeOutput.url(storageFile.getPath()),
             storageFile.getCreatedAt()
         )
