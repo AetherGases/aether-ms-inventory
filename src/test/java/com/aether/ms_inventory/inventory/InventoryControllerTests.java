@@ -84,15 +84,11 @@ class InventoryControllerTests {
   private EmployeeEntity employeeActive;
   private EmployeeEntity employeeOther;
   private PermissionEntity permission;
-
-  // IDs criados durante o teste atual, sempre removidos no @AfterEach
   private final List<Integer> inventoriesIds = new ArrayList<>();
   private final List<Integer> storageFileIds = new ArrayList<>();
 
   @BeforeAll
   void beforeAll() {
-    // Remove resíduos de execuções anteriores que falharam antes de concluir o afterAll,
-    // evitando duplicidade de CNPJ e FKs pendentes (employee <- inventory)
     cleanupLeftoverTestData();
 
     enterprise = new EnterpriseEntity(
@@ -143,7 +139,6 @@ class InventoryControllerTests {
 
     employeeActive = employeeRepository.save(employeeActive);
 
-    // Segundo funcionário, usado para garantir que um usuário não enxerga os inventários de outro
     employeeOther = new EmployeeEntity(
         "52998224725",
         "Outro Teste",
@@ -174,8 +169,6 @@ class InventoryControllerTests {
         .map(EmployeeEntity::getId)
         .toList();
 
-    // Qualquer inventário pendurado nesses funcionários (criado por createInventory
-    // ou pelo POST) precisa sair antes, senão a FK trava a remoção do employee
     if (!leftoverEmployeeIds.isEmpty()) {
       List<Integer> leftoverInventoryIds = inventoryRepository.findAll().stream()
           .filter(inv -> inv.getOwnerEmployee() != null
@@ -261,8 +254,6 @@ class InventoryControllerTests {
 
   @AfterEach
   void cleanup() {
-    // Deleção em lote (bulk DELETE), sem carregar/gerenciar as entidades na sessão:
-    // evita que um flush acabe validando estado pendente de outros testes.
     if (!inventoriesIds.isEmpty()) {
       inventoryRepository.deleteAllByIdInBatch(inventoriesIds);
       inventoriesIds.clear();
@@ -567,8 +558,6 @@ class InventoryControllerTests {
     int inventoryId = JsonPath.read(responseBody, "$.id");
     int storageFileId = JsonPath.read(responseBody, "$.storageFile.id");
 
-    // Garante que o cleanup remova exatamente o que este teste criou,
-    // por ID em vez de por nome (imune a qualquer transformação de string a jusante)
     inventoriesIds.add(inventoryId);
     storageFileIds.add(storageFileId);
 
