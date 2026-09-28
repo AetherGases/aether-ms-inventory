@@ -14,6 +14,8 @@ import com.aether.ms_inventory.shared.persistence.postgres.entities.InventoryEnt
 import com.aether.ms_inventory.shared.persistence.postgres.entities.StorageFileEntity;
 import com.aether.ms_inventory.shared.persistence.postgres.repositories.InventoryRepository;
 import com.aether.ms_inventory.shared.persistence.postgres.repositories.StorageFileRepository;
+import com.aether.ms_inventory.shared.persistence.redis.entities.InputInventoryDocument;
+import com.aether.ms_inventory.shared.persistence.redis.repositories.InputInventoryRepository;
 import com.aether.ms_inventory.shared.services.GetUserInfosService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -49,6 +51,8 @@ public class InventoryServiceTests {
 
   @Mock
   private StorageFileRepository storageFileRepository;
+  @Mock
+  private InputInventoryRepository inputInventoryRepository;
 
   @Mock
   private GetUserInfosService getUserInfosService;
@@ -266,7 +270,7 @@ public class InventoryServiceTests {
   // ---------------------------------------------------------------------------
 
   @Test
-  @DisplayName("Should register an inventory together with its storage file")
+  @DisplayName("Should register an inventory together with its storage file and redis document")
   void registerInventory() {
     Integer userId = 1;
 
@@ -292,9 +296,17 @@ public class InventoryServiceTests {
     ArgumentCaptor<InventoryEntity> inventoryCaptor =
         ArgumentCaptor.forClass(InventoryEntity.class);
 
-    InOrder inOrder = inOrder(storageFileRepository, inventoryRepository);
+    ArgumentCaptor<InputInventoryDocument> documentCaptor =
+        ArgumentCaptor.forClass(InputInventoryDocument.class);
+
+    InOrder inOrder = inOrder(
+        storageFileRepository,
+        inventoryRepository,
+        inputInventoryRepository
+    );
     inOrder.verify(storageFileRepository).save(fileCaptor.capture());
     inOrder.verify(inventoryRepository).save(inventoryCaptor.capture());
+    inOrder.verify(inputInventoryRepository).save(documentCaptor.capture());
 
     verify(getUserInfosService).getEmployee(userId);
 
@@ -306,6 +318,10 @@ public class InventoryServiceTests {
     assertEquals("Inventário Teste", savedInventory.getName());
     assertEquals(InventoryTypeEnum.INPUT, savedInventory.getType());
     assertSame(employee, savedInventory.getOwnerEmployee());
+
+    InputInventoryDocument savedDocument = documentCaptor.getValue();
+    assertEquals(savedInventory.getId(), savedDocument.getId());
+    assertEquals(savedInventory.getStatus(), savedDocument.getStatus());
 
     assertEquals("Inventário Teste", output.name());
     assertEquals(InventoryTypeEnum.INPUT, output.type());
@@ -332,7 +348,11 @@ public class InventoryServiceTests {
         () -> inventoryService.registerInventory(input)
     );
 
-    verifyNoInteractions(storageFileRepository, inventoryRepository);
+    verifyNoInteractions(
+        storageFileRepository,
+        inventoryRepository,
+        inputInventoryRepository
+    );
   }
 
   @Test
@@ -359,7 +379,63 @@ public class InventoryServiceTests {
         () -> inventoryService.registerInventory(input)
     );
 
-    verifyNoInteractions(inventoryRepository);
+    verifyNoInteractions(inventoryRepository, inputInventoryRepository);
+  }
+
+  @Test
+  @DisplayName("Should not save the redis document when saving the inventory fails")
+  void registerInventoryWhenInventorySaveFails() {
+    Integer userId = 1;
+
+    RegisterInventoryInputDTO input =
+        new RegisterInventoryInputDTO(
+            userId,
+            "Inventário Teste",
+            "arquivo.csv",
+            "/uploads/arquivo.csv"
+        );
+
+    when(getUserInfosService.getEmployee(userId))
+        .thenReturn(mock(EmployeeEntity.class));
+
+    when(inventoryRepository.save(any(InventoryEntity.class)))
+        .thenThrow(new RuntimeException("Database error"));
+
+    assertThrows(
+        RuntimeException.class,
+        () -> inventoryService.registerInventory(input)
+    );
+
+    verify(storageFileRepository).save(any(StorageFileEntity.class));
+    verifyNoInteractions(inputInventoryRepository);
+  }
+
+  @Test
+  @DisplayName("Should propagate the error when saving the redis document fails")
+  void registerInventoryWhenRedisSaveFails() {
+    Integer userId = 1;
+
+    RegisterInventoryInputDTO input =
+        new RegisterInventoryInputDTO(
+            userId,
+            "Inventário Teste",
+            "arquivo.csv",
+            "/uploads/arquivo.csv"
+        );
+
+    when(getUserInfosService.getEmployee(userId))
+        .thenReturn(mock(EmployeeEntity.class));
+
+    when(inputInventoryRepository.save(any(InputInventoryDocument.class)))
+        .thenThrow(new RuntimeException("Redis error"));
+
+    assertThrows(
+        RuntimeException.class,
+        () -> inventoryService.registerInventory(input)
+    );
+
+    verify(storageFileRepository).save(any(StorageFileEntity.class));
+    verify(inventoryRepository).save(any(InventoryEntity.class));
   }
 
   // ---------------------------------------------------------------------------

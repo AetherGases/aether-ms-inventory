@@ -16,6 +16,8 @@ import com.aether.ms_inventory.shared.persistence.postgres.entities.StorageFileE
 import com.aether.ms_inventory.shared.persistence.postgres.repositories.InventoryRepository;
 import com.aether.ms_inventory.shared.persistence.postgres.repositories.StorageFileRepository;
 import com.aether.ms_inventory.shared.persistence.postgres.specifications.InventorySpecification;
+import com.aether.ms_inventory.shared.persistence.redis.entities.InputInventoryDocument;
+import com.aether.ms_inventory.shared.persistence.redis.repositories.InputInventoryRepository;
 import com.aether.ms_inventory.shared.services.GetUserInfosService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.jpa.domain.Specification;
@@ -29,6 +31,7 @@ import java.util.List;
 public class InventoryService {
   private final InventoryRepository inventoryRepository;
   private final StorageFileRepository storageFileRepository;
+  private final InputInventoryRepository inputInventoryRepository;
   private final GetUserInfosService getUserInfosService;
 
   @Transactional
@@ -50,6 +53,13 @@ public class InventoryService {
     );
 
     inventoryRepository.save(inventory);
+
+    InputInventoryDocument inputInventory = new InputInventoryDocument(
+        inventory.getId(),
+        inventory.getStatus()
+    );
+
+    inputInventoryRepository.save(inputInventory);
 
     return InventoryMapper.convertRegisterInventoryEntitiesToOutput(
         inventory,

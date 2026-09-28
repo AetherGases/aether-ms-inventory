@@ -5,6 +5,7 @@ import com.aether.ms_inventory.shared.enums.InventoryStatusEnum;
 import com.aether.ms_inventory.shared.enums.InventoryTypeEnum;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.*;
 import com.aether.ms_inventory.shared.persistence.postgres.repositories.*;
+import com.aether.ms_inventory.shared.persistence.redis.repositories.InputInventoryRepository;
 import com.aether.ms_inventory.shared.security.jwt.JwtTokenProvider;
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.*;
@@ -17,10 +18,9 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-
+import com.aether.ms_inventory.shared.persistence.redis.entities.InputInventoryDocument;
 import java.util.ArrayList;
 import java.util.List;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -52,6 +52,8 @@ class InventoryControllerTests {
   @Autowired
   private InventoryRepository inventoryRepository;
 
+  @Autowired
+  private InputInventoryRepository inputInventoryRepository;
   @Autowired
   private StorageFileRepository storageFileRepository;
 
@@ -152,13 +154,6 @@ class InventoryControllerTests {
 
     employeeOther = employeeRepository.save(employeeOther);
   }
-
-  /**
-   * Remove qualquer dado de uma execução anterior que tenha ficado "preso" no banco
-   * porque a suíte não terminou normalmente (ex.: falha no meio do beforeAll/afterEach).
-   * Sem isso, o CNPJ fixo do enterprise e os relacionamentos de employee/inventory
-   * colidem com os novos dados criados nesta execução.
-   */
   private void cleanupLeftoverTestData() {
 
     List<EmployeeEntity> leftoverEmployees = employeeRepository.findAll().stream()
@@ -177,6 +172,8 @@ class InventoryControllerTests {
           .toList();
 
       if (!leftoverInventoryIds.isEmpty()) {
+        inventoryRepository.deleteAllByIdInBatch(leftoverInventoryIds);
+        leftoverInventoryIds.forEach(inputInventoryRepository::deleteById);
         inventoryRepository.deleteAllByIdInBatch(leftoverInventoryIds);
       }
     }
@@ -255,6 +252,7 @@ class InventoryControllerTests {
   @AfterEach
   void cleanup() {
     if (!inventoriesIds.isEmpty()) {
+      inventoriesIds.forEach(inputInventoryRepository::deleteById);
       inventoryRepository.deleteAllByIdInBatch(inventoriesIds);
       inventoriesIds.clear();
     }
@@ -563,12 +561,16 @@ class InventoryControllerTests {
 
     InventoryEntity savedInventory = inventoryRepository.findById(inventoryId).orElse(null);
     StorageFileEntity savedFile = storageFileRepository.findById(storageFileId).orElse(null);
+    InputInventoryDocument savedDocument = inputInventoryRepository.findById(inventoryId);
 
     assertNotNull(savedInventory, "Inventário deveria ter sido persistido no banco");
     assertNotNull(savedFile, "Arquivo deveria ter sido persistido no banco");
     assertEquals(REGISTERED_FILE_PATH, savedFile.getPath());
     assertNotNull(savedInventory.getStorageFile(), "Inventário deveria estar associado ao arquivo");
     assertEquals(savedFile.getId(), savedInventory.getStorageFile().getId());
+    assertNotNull(savedDocument, "Documento do inventário deveria ter sido persistido no Redis");
+    assertEquals(inventoryId, savedDocument.getId());
+    assertEquals(savedInventory.getStatus(), savedDocument.getStatus());
   }
 
   @Test

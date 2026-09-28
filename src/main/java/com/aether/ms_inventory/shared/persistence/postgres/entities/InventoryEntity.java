@@ -80,7 +80,7 @@ public class InventoryEntity extends DateBaseEntity{
 
   public InventoryEntity(String name, InventoryTypeEnum type, EmployeeEntity ownerEmployee, StorageFileEntity storageFile) {
     this.name = name;
-    this.status = InventoryStatusEnum.UNDER_REVIEW;
+    this.status = InventoryStatusEnum.PROCESSING;
     this.type = type;
     this.ownerEmployee = ownerEmployee;
     this.department = ownerEmployee.getDepartment();
