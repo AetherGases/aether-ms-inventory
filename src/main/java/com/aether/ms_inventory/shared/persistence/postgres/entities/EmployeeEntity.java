@@ -27,7 +27,7 @@ public class EmployeeEntity extends UserBaseEntity{
   @JdbcTypeCode(SqlTypes.CHAR)
   private String cpf;
 
-  @Column(length = AetherConstants.MAX_EMPLOYEE_NAME_LENGTH)
+  @Column(length = AetherConstants.MAX_EMPLOYEE_NAME_LENGTH, nullable = false)
   private String name;
 
   @Column(length = AetherConstants.MAX_EMPLOYEE_PHONE_LENGTH)
@@ -39,11 +39,11 @@ public class EmployeeEntity extends UserBaseEntity{
   private EmployeeStatusEnum status;
 
   @ManyToOne
-  @JoinColumn(name = "id_permission_group")
+  @JoinColumn(name = "id_permission_group", nullable = false)
   private PermissionGroupEntity permissionGroup;
 
   @ManyToOne
-  @JoinColumn(name = "id_department")
+  @JoinColumn(name = "id_department", nullable = false)
   private DepartmentEntity department;
 
   @OneToOne

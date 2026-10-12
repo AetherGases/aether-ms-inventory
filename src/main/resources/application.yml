@@ -14,7 +14,8 @@ spring:
     jwt:
       token:
         secret-key: ${JWT_SECRET:secret}
-        expire-length: ${JWT_EXPIRE_LENGTH:3600000}
+        expire-token-length: ${JWT_TOKEN_EXPIRE_LENGTH:3600000}
+        expire-refresh-length: ${JWT_REFRESH_EXPIRE_LENGTH:86400000}
 
   datasource:
     url: jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
@@ -37,3 +38,21 @@ spring:
 
 server:
   port: ${API_PORT:8080}
+
+inventory:
+  worker:
+    enabled: true
+    poll-interval-ms: 5000
+    batch-size: 10
+    max-attempts: 3
+    retry-delay-seconds: 30
+    lock-ttl-seconds: 300
+    download-timeout-seconds: 30
+    max-file-size-mb: 10
+    max-markdown-chars: 400000
+    allowed-file-hosts: ${INVENTORY_ALLOWED_FILE_HOSTS:}
+
+aeko:
+  base-url: ${AEKO_URL:http://localhost:8000}
+  connect-timeout-seconds: 5
+  read-timeout-seconds: 120

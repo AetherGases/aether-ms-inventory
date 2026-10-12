@@ -40,6 +40,9 @@ public class InventoryEntity extends DateBaseEntity{
   @Column(name = "inventorying_period_end")
   private LocalDate inventoryPeriodEnd;
 
+  @Column(name = "status_message", length = 100)
+  private String statusMessage;
+
   @ManyToOne
   @JoinColumn(name = "id_department")
   private DepartmentEntity department;

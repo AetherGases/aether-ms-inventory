@@ -20,7 +20,7 @@ public class PermissionGroupEntity {
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Integer id;
 
-  @Column(length = AetherConstants.MAX_PERMISSION_GROUP_DESCRIPTION_LENGTH)
+  @Column(length = AetherConstants.MAX_PERMISSION_GROUP_DESCRIPTION_LENGTH, nullable = false)
   private String description;
 
   @ManyToMany

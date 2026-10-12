@@ -32,7 +32,7 @@ public class PaymentEntity extends DateBaseEntity{
   @Column(name = "additional_use_value")
   private BigDecimal additionalUseValue;
 
-  @Column(name = "due_date")
+  @Column(name = "due_date", nullable = false)
   private LocalDate dueDate;
 
   @Enumerated(EnumType.STRING)

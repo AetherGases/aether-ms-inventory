@@ -3,7 +3,6 @@ package com.aether.ms_inventory.shared.security;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.PermissionEntity;
 import com.aether.ms_inventory.shared.persistence.postgres.repositories.PermissionRepository;
 import lombok.RequiredArgsConstructor;
-import org.jspecify.annotations.Nullable;
 import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.authorization.AuthorizationManager;
 import org.springframework.security.authorization.AuthorizationResult;
@@ -51,7 +50,7 @@ public class PermissionAuthorizationManager
   ) {
     PermissionEntity permission = permissionRepository.findByNameIgnoreCase(permissionName);
 
-    if (permission != null && requestUrl.matches(permission.getUrl())) return true;
+    if (permission != null && requestUrl.matches(permission.getPattern())) return true;
 
     return false;
   }

@@ -15,26 +15,26 @@ import java.util.List;
 @AllArgsConstructor
 @Getter
 @Setter
-public class PermissionEntity {
+public class PermissionEntity extends DateBaseEntity {
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Integer id;
 
-  @Column(length = AetherConstants.MAX_PERMISSION_NAME_LENGTH, nullable = false, unique = true)
+  @Column(length = AetherConstants.MAX_PERMISSION_NAME_LENGTH, nullable = false)
   private String name;
 
   @Column(length = AetherConstants.MAX_PERMISSION_DESCRIPTION_LENGTH)
   private String description;
 
-  @Column(length = AetherConstants.MAX_PERMISSION_URL_LENGTH)
-  private String url;
+  @Column(length = 150, nullable = false, unique = true)
+  private String pattern;
 
   @ManyToMany(mappedBy = "permissions")
   private List<PermissionGroupEntity> permissionGroups;
 
-  public PermissionEntity(String name, String description, String url) {
+  public PermissionEntity(String name, String description, String pattern) {
     this.name = name;
     this.description = description;
-    this.url = url;
+    this.pattern = pattern;
   }
 }
