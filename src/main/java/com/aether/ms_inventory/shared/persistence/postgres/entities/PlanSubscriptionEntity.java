@@ -21,9 +21,9 @@ public class PlanSubscriptionEntity {
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Integer id;
 
-  @Column(name = "is_active")
+  @Column(name = "is_active", nullable = false)
   @ColumnDefault("true")
-  private Boolean active;
+  private Boolean active = true;
 
   @Column(nullable = false)
   private Integer installments;

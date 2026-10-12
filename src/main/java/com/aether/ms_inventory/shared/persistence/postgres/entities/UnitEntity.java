@@ -31,9 +31,9 @@ public class UnitEntity extends DateBaseEntity{
   @JdbcTypeCode(SqlTypes.CHAR)
   private String cnpj;
 
-  @Column(name = "is_active")
+  @Column(name = "is_active", nullable = false)
   @ColumnDefault("true")
-  private Boolean isActive;
+  private Boolean isActive = true;
 
   @ManyToOne
   @JoinColumn(name = "id_enterprise")

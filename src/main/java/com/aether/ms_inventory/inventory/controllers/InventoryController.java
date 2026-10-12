@@ -1,15 +1,19 @@
 package com.aether.ms_inventory.inventory.controllers;
 
+import com.aether.ms_inventory.inventory.dto.input.RejectInventoryInputDTO;
 import com.aether.ms_inventory.inventory.dto.output.FindManyPendingInventoriesOutputDTO;
 import com.aether.ms_inventory.inventory.dto.output.FindMyInventoriesHistoryOutputDTO;
 import com.aether.ms_inventory.inventory.dto.output.RegisterInventoryOutputDTO;
+import com.aether.ms_inventory.inventory.dto.output.RejectInventoryOutputDTO;
 import com.aether.ms_inventory.inventory.dto.query_params.FindManyPendingInventoriesQueryParamsDTO;
 import com.aether.ms_inventory.inventory.dto.query_params.FindMyInventoriesQueryParamsDTO;
 import com.aether.ms_inventory.inventory.dto.request.RegisterInventoryRequestDTO;
+import com.aether.ms_inventory.inventory.dto.request.RejectInventoryRequestDTO;
 import com.aether.ms_inventory.inventory.mappers.InventoryMapper;
 import com.aether.ms_inventory.inventory.services.InventoryService;
 import com.aether.ms_inventory.shared.docs.InventoryControllerDocs;
 import com.aether.ms_inventory.shared.helpers.CustomUserDetails;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -83,6 +87,35 @@ public class InventoryController implements InventoryControllerDocs {
     return new ResponseEntity<>(
         this.inventoryService.findManyPendingReports(
             InventoryMapper.convertFindManyPendingInventoryQueryToInput(user.getId(), query)
+        ),
+        HttpStatus.OK
+    );
+  }
+
+  @PatchMapping("/penging/{id}/reject")
+  public ResponseEntity<RejectInventoryOutputDTO> rejectInventory(
+      @PathVariable()
+      @Schema(
+          description = "ID do inventário",
+          example = "1"
+      )
+      Integer id,
+
+      @RequestBody
+      @Valid
+      RejectInventoryRequestDTO input,
+
+      Authentication authentication
+  ){
+    CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
+
+    return new ResponseEntity<>(
+        this.inventoryService.rejectInventory(
+            new RejectInventoryInputDTO(
+                id,
+                user.getId(),
+                input.message()
+            )
         ),
         HttpStatus.OK
     );

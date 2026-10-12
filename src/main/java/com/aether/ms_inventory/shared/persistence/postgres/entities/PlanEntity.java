@@ -40,7 +40,7 @@ public class PlanEntity extends DateBaseEntity{
 
   @Column(name = "is_active", nullable = false)
   @ColumnDefault("true")
-  private Boolean isActive;
+  private Boolean isActive = true;
 
   @OneToMany(mappedBy = "plan")
   private List<PlanSubscriptionEntity> planSubscriptions;

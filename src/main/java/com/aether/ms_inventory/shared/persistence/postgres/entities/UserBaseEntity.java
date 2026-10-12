@@ -13,6 +13,6 @@ public abstract class UserBaseEntity extends DateBaseEntity{
   @Column(length = AetherConstants.MAX_EMAIL_LENGTH, nullable = false, unique = true)
   private String email;
 
-  @Column(name = "password_hash", length = AetherConstants.MAX_PASSWORD_HASH_LENGTH)
+  @Column(name = "password_hash", length = AetherConstants.MAX_PASSWORD_HASH_LENGTH, nullable = false)
   private String passwordHash;
 }

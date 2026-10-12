@@ -2,13 +2,16 @@ package com.aether.ms_inventory.inventory.services;
 
 import com.aether.ms_inventory.inventory.dto.input.FindManyPendingInventoriesInputDTO;
 import com.aether.ms_inventory.inventory.dto.input.FindMyInventoriesHistoryInputDTO;
+import com.aether.ms_inventory.inventory.dto.input.RejectInventoryInputDTO;
 import com.aether.ms_inventory.inventory.dto.output.FindManyPendingInventoriesOutputDTO;
 import com.aether.ms_inventory.inventory.dto.input.RegisterInventoryInputDTO;
 import com.aether.ms_inventory.inventory.dto.output.FindMyInventoriesHistoryOutputDTO;
 import com.aether.ms_inventory.inventory.dto.output.RegisterInventoryOutputDTO;
+import com.aether.ms_inventory.inventory.dto.output.RejectInventoryOutputDTO;
 import com.aether.ms_inventory.inventory.mappers.InventoryMapper;
 import com.aether.ms_inventory.shared.enums.InventoryStatusEnum;
 import com.aether.ms_inventory.shared.enums.InventoryTypeEnum;
+import com.aether.ms_inventory.shared.exceptions.NotFoundException;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.DepartmentEntity;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.EmployeeEntity;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.InventoryEntity;
@@ -112,5 +115,30 @@ public class InventoryService {
     long count = inventoryRepository.count(spec);
 
     return InventoryMapper.convertFindManyPendingEntitiesToOutput(inventories, count);
+  }
+
+  public RejectInventoryOutputDTO rejectInventory(
+      RejectInventoryInputDTO input
+  ){
+    DepartmentEntity department = getUserInfosService.getDepartment(input.validatorId());
+
+    InventoryEntity inventory = inventoryRepository.findByIdAndDepartmentIdAndStatus(input.id(), department.getId(), InventoryStatusEnum.UNDER_REVIEW).orElseThrow(
+        () -> new NotFoundException("exception.inventory.not-found")
+    );
+
+    inventory.setStatus(InventoryStatusEnum.REJECTED);
+    inventory.setStatusMessage(input.message());
+    inventoryRepository.save(inventory);
+
+    return new RejectInventoryOutputDTO(
+        inventory.getId(),
+        inventory.getName(),
+        inventory.getDescription(),
+        inventory.getType(),
+        inventory.getStatus(),
+        inventory.getStatusMessage(),
+        inventory.getCreatedAt(),
+        inventory.getUpdatedAt()
+    );
   }
 }

@@ -51,7 +51,7 @@ public class PermissionAuthorizationManager
   ) {
     PermissionEntity permission = permissionRepository.findByNameIgnoreCase(permissionName);
 
-    if (permission != null && requestUrl.matches(permission.getUrl())) return true;
+    if (permission != null && requestUrl.matches(permission.getPattern())) return true;
 
     return false;
   }
