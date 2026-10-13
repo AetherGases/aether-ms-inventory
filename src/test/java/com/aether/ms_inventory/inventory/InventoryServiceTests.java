@@ -1,13 +1,7 @@
 package com.aether.ms_inventory.inventory;
 
-import com.aether.ms_inventory.inventory.dto.input.FindManyPendingInventoriesInputDTO;
-import com.aether.ms_inventory.inventory.dto.input.FindMyInventoriesHistoryInputDTO;
-import com.aether.ms_inventory.inventory.dto.input.RegisterInventoryInputDTO;
-import com.aether.ms_inventory.inventory.dto.input.RejectInventoryInputDTO;
-import com.aether.ms_inventory.inventory.dto.output.FindManyPendingInventoriesOutputDTO;
-import com.aether.ms_inventory.inventory.dto.output.FindMyInventoriesHistoryOutputDTO;
-import com.aether.ms_inventory.inventory.dto.output.RegisterInventoryOutputDTO;
-import com.aether.ms_inventory.inventory.dto.output.RejectInventoryOutputDTO;
+import com.aether.ms_inventory.inventory.dto.input.*;
+import com.aether.ms_inventory.inventory.dto.output.*;
 import com.aether.ms_inventory.inventory.services.InventoryService;
 import com.aether.ms_inventory.shared.enums.InventoryStatusEnum;
 import com.aether.ms_inventory.shared.enums.InventoryTypeEnum;
@@ -820,6 +814,180 @@ public class InventoryServiceTests {
     assertThrows(
         RuntimeException.class,
         () -> inventoryService.rejectInventory(input)
+    );
+
+    verify(inventoryRepository).save(any(InventoryEntity.class));
+  }
+
+  // ---------------------------------------------------------------------------
+  // approveInventory
+  // ---------------------------------------------------------------------------
+
+  @Test
+  @DisplayName("Should approve an inventory under review and persist the status message")
+  void approveInventory() {
+    Integer inventoryId = 5;
+    Integer validatorId = 1;
+    Integer departmentId = 10;
+    String message = "Dados conferidos";
+
+    ApproveInventoryInputDTO input =
+        new ApproveInventoryInputDTO(inventoryId, validatorId, message);
+
+    DepartmentEntity department = new DepartmentEntity();
+    department.setId(departmentId);
+
+    InventoryEntity inventory = new InventoryEntity();
+    inventory.setName("Inventário Teste");
+    inventory.setStatus(InventoryStatusEnum.UNDER_REVIEW);
+
+    when(getUserInfosService.getDepartment(validatorId))
+        .thenReturn(department);
+
+    when(inventoryRepository.findByIdAndDepartmentIdAndStatus(
+        inventoryId,
+        departmentId,
+        InventoryStatusEnum.UNDER_REVIEW
+    )).thenReturn(Optional.of(inventory));
+
+    ApproveInventoryOutputDTO output = inventoryService.approveInventory(input);
+
+    ArgumentCaptor<InventoryEntity> captor =
+        ArgumentCaptor.forClass(InventoryEntity.class);
+
+    verify(inventoryRepository).save(captor.capture());
+
+    InventoryEntity saved = captor.getValue();
+    assertSame(inventory, saved);
+    assertEquals(InventoryStatusEnum.APPROVED, saved.getStatus());
+    assertEquals(message, saved.getStatusMessage());
+
+    assertNotNull(output);
+
+    verify(getUserInfosService).getDepartment(validatorId);
+    verify(inventoryRepository).findByIdAndDepartmentIdAndStatus(
+        inventoryId,
+        departmentId,
+        InventoryStatusEnum.UNDER_REVIEW
+    );
+  }
+
+  @Test
+  @DisplayName("Should throw NotFoundException and not save when the inventory is not found")
+  void approveInventoryWhenInventoryNotFound() {
+    Integer inventoryId = 5;
+    Integer validatorId = 1;
+    Integer departmentId = 10;
+
+    ApproveInventoryInputDTO input =
+        new ApproveInventoryInputDTO(inventoryId, validatorId, "Motivo");
+
+    DepartmentEntity department = new DepartmentEntity();
+    department.setId(departmentId);
+
+    when(getUserInfosService.getDepartment(validatorId))
+        .thenReturn(department);
+
+    when(inventoryRepository.findByIdAndDepartmentIdAndStatus(
+        inventoryId,
+        departmentId,
+        InventoryStatusEnum.UNDER_REVIEW
+    )).thenReturn(Optional.empty());
+
+    NotFoundException exception = assertThrows(
+        NotFoundException.class,
+        () -> inventoryService.approveInventory(input)
+    );
+
+    assertEquals("exception.inventory.not-found", exception.getMessage());
+
+    verify(inventoryRepository, never()).save(any(InventoryEntity.class));
+  }
+
+  @Test
+  @DisplayName("Should only look for inventories under review in the validator's department")
+  void approveInventorySearchesOnlyUnderReviewInValidatorDepartment() {
+    Integer inventoryId = 5;
+    Integer validatorId = 1;
+    Integer departmentId = 10;
+
+    ApproveInventoryInputDTO input =
+        new ApproveInventoryInputDTO(inventoryId, validatorId, "Motivo");
+
+    DepartmentEntity department = new DepartmentEntity();
+    department.setId(departmentId);
+
+    when(getUserInfosService.getDepartment(validatorId))
+        .thenReturn(department);
+
+    when(inventoryRepository.findByIdAndDepartmentIdAndStatus(
+        any(),
+        any(),
+        any()
+    )).thenReturn(Optional.empty());
+
+    assertThrows(
+        NotFoundException.class,
+        () -> inventoryService.approveInventory(input)
+    );
+
+    verify(inventoryRepository).findByIdAndDepartmentIdAndStatus(
+        eq(inventoryId),
+        eq(departmentId),
+        eq(InventoryStatusEnum.UNDER_REVIEW)
+    );
+  }
+
+  @Test
+  @DisplayName("Should not query inventories when the department lookup fails")
+  void approveInventoryWhenDepartmentLookupFails() {
+    Integer validatorId = 1;
+
+    ApproveInventoryInputDTO input =
+        new ApproveInventoryInputDTO(5, validatorId, "Motivo");
+
+    when(getUserInfosService.getDepartment(validatorId))
+        .thenThrow(new RuntimeException("Department not found"));
+
+    assertThrows(
+        RuntimeException.class,
+        () -> inventoryService.approveInventory(input)
+    );
+
+    verifyNoInteractions(inventoryRepository);
+  }
+
+  @Test
+  @DisplayName("Should propagate the error when saving the approved inventory fails")
+  void approveInventoryWhenSaveFails() {
+    Integer inventoryId = 5;
+    Integer validatorId = 1;
+    Integer departmentId = 10;
+
+    ApproveInventoryInputDTO input =
+        new ApproveInventoryInputDTO(inventoryId, validatorId, "Motivo");
+
+    DepartmentEntity department = new DepartmentEntity();
+    department.setId(departmentId);
+
+    InventoryEntity inventory = new InventoryEntity();
+    inventory.setStatus(InventoryStatusEnum.UNDER_REVIEW);
+
+    when(getUserInfosService.getDepartment(validatorId))
+        .thenReturn(department);
+
+    when(inventoryRepository.findByIdAndDepartmentIdAndStatus(
+        inventoryId,
+        departmentId,
+        InventoryStatusEnum.UNDER_REVIEW
+    )).thenReturn(Optional.of(inventory));
+
+    when(inventoryRepository.save(any(InventoryEntity.class)))
+        .thenThrow(new RuntimeException("Database error"));
+
+    assertThrows(
+        RuntimeException.class,
+        () -> inventoryService.approveInventory(input)
     );
 
     verify(inventoryRepository).save(any(InventoryEntity.class));

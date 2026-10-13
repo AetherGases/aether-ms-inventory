@@ -1,13 +1,7 @@
 package com.aether.ms_inventory.inventory.services;
 
-import com.aether.ms_inventory.inventory.dto.input.FindManyPendingInventoriesInputDTO;
-import com.aether.ms_inventory.inventory.dto.input.FindMyInventoriesHistoryInputDTO;
-import com.aether.ms_inventory.inventory.dto.input.RejectInventoryInputDTO;
-import com.aether.ms_inventory.inventory.dto.output.FindManyPendingInventoriesOutputDTO;
-import com.aether.ms_inventory.inventory.dto.input.RegisterInventoryInputDTO;
-import com.aether.ms_inventory.inventory.dto.output.FindMyInventoriesHistoryOutputDTO;
-import com.aether.ms_inventory.inventory.dto.output.RegisterInventoryOutputDTO;
-import com.aether.ms_inventory.inventory.dto.output.RejectInventoryOutputDTO;
+import com.aether.ms_inventory.inventory.dto.input.*;
+import com.aether.ms_inventory.inventory.dto.output.*;
 import com.aether.ms_inventory.inventory.mappers.InventoryMapper;
 import com.aether.ms_inventory.shared.enums.InventoryStatusEnum;
 import com.aether.ms_inventory.shared.enums.InventoryTypeEnum;
@@ -131,5 +125,21 @@ public class InventoryService {
     inventoryRepository.save(inventory);
 
     return InventoryMapper.convertRejectInventoryEntityToOutput(inventory);
+  }
+
+  public ApproveInventoryOutputDTO approveInventory(
+      ApproveInventoryInputDTO input
+  ){
+    DepartmentEntity department = getUserInfosService.getDepartment(input.validatorId());
+
+    InventoryEntity inventory = inventoryRepository.findByIdAndDepartmentIdAndStatus(input.id(), department.getId(), InventoryStatusEnum.UNDER_REVIEW).orElseThrow(
+        () -> new NotFoundException("exception.inventory.not-found")
+    );
+
+    inventory.setStatus(InventoryStatusEnum.APPROVED);
+    inventory.setStatusMessage(input.message());
+    inventoryRepository.save(inventory);
+
+    return InventoryMapper.convertApproveInventoryEntityToOutput(inventory);
   }
 }

@@ -1,12 +1,11 @@
 package com.aether.ms_inventory.inventory.controllers;
 
+import com.aether.ms_inventory.inventory.dto.input.ApproveInventoryInputDTO;
 import com.aether.ms_inventory.inventory.dto.input.RejectInventoryInputDTO;
-import com.aether.ms_inventory.inventory.dto.output.FindManyPendingInventoriesOutputDTO;
-import com.aether.ms_inventory.inventory.dto.output.FindMyInventoriesHistoryOutputDTO;
-import com.aether.ms_inventory.inventory.dto.output.RegisterInventoryOutputDTO;
-import com.aether.ms_inventory.inventory.dto.output.RejectInventoryOutputDTO;
+import com.aether.ms_inventory.inventory.dto.output.*;
 import com.aether.ms_inventory.inventory.dto.query_params.FindManyPendingInventoriesQueryParamsDTO;
 import com.aether.ms_inventory.inventory.dto.query_params.FindMyInventoriesQueryParamsDTO;
+import com.aether.ms_inventory.inventory.dto.request.ApproveInventoryRequestDTO;
 import com.aether.ms_inventory.inventory.dto.request.RegisterInventoryRequestDTO;
 import com.aether.ms_inventory.inventory.dto.request.RejectInventoryRequestDTO;
 import com.aether.ms_inventory.inventory.mappers.InventoryMapper;
@@ -92,6 +91,7 @@ public class InventoryController implements InventoryControllerDocs {
     );
   }
 
+  @Override
   @PatchMapping("/pending/{id}/reject")
   public ResponseEntity<RejectInventoryOutputDTO> rejectInventory(
       @PathVariable()
@@ -112,6 +112,36 @@ public class InventoryController implements InventoryControllerDocs {
     return new ResponseEntity<>(
         this.inventoryService.rejectInventory(
             new RejectInventoryInputDTO(
+                id,
+                user.getId(),
+                input.message()
+            )
+        ),
+        HttpStatus.OK
+    );
+  }
+
+  @Override
+  @PatchMapping("/pending/{id}/approve")
+  public ResponseEntity<ApproveInventoryOutputDTO> approveInventory(
+      @PathVariable()
+      @Schema(
+          description = "ID do inventário",
+          example = "1"
+      )
+      Integer id,
+
+      @RequestBody
+      @Valid
+      ApproveInventoryRequestDTO input,
+
+      Authentication authentication
+  ){
+    CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
+
+    return new ResponseEntity<>(
+        this.inventoryService.approveInventory(
+            new ApproveInventoryInputDTO(
                 id,
                 user.getId(),
                 input.message()

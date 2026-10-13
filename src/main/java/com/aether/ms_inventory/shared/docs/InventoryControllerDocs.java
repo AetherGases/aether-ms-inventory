@@ -1,11 +1,9 @@
 package com.aether.ms_inventory.shared.docs;
 
-import com.aether.ms_inventory.inventory.dto.output.FindManyPendingInventoriesOutputDTO;
-import com.aether.ms_inventory.inventory.dto.output.FindMyInventoriesHistoryOutputDTO;
-import com.aether.ms_inventory.inventory.dto.output.RegisterInventoryOutputDTO;
-import com.aether.ms_inventory.inventory.dto.output.RejectInventoryOutputDTO;
+import com.aether.ms_inventory.inventory.dto.output.*;
 import com.aether.ms_inventory.inventory.dto.query_params.FindManyPendingInventoriesQueryParamsDTO;
 import com.aether.ms_inventory.inventory.dto.query_params.FindMyInventoriesQueryParamsDTO;
+import com.aether.ms_inventory.inventory.dto.request.ApproveInventoryRequestDTO;
 import com.aether.ms_inventory.inventory.dto.request.RegisterInventoryRequestDTO;
 import com.aether.ms_inventory.inventory.dto.request.RejectInventoryRequestDTO;
 import io.swagger.v3.oas.annotations.Operation;
@@ -121,6 +119,36 @@ public interface InventoryControllerDocs {
 
       @Valid
       RejectInventoryRequestDTO input,
+
+      Authentication authentication
+  );
+
+  @Operation(
+      summary = "Aprova um relatório do departamento do usuário logado.",
+      description = "Aprova um relatório enviado para aprovação do usuário logado.",
+      tags = {"Inventories"},
+      responses = {
+          @ApiResponse(description = "Success", responseCode = "200", content =
+          @Content(
+              mediaType = MediaType.APPLICATION_JSON_VALUE,
+              array = @ArraySchema(schema = @Schema(implementation = FindManyPendingInventoriesOutputDTO.class))
+          )
+          ),
+          @ApiResponse(description = "Bad Request", responseCode = "400", content = @Content),
+          @ApiResponse(description = "Unhautorized", responseCode = "401", content = @Content),
+          @ApiResponse(description = "Forbidden", responseCode = "403", content = @Content),
+          @ApiResponse(description = "Internal Server Error", responseCode = "500", content = @Content)
+      }
+  )
+  ResponseEntity<ApproveInventoryOutputDTO> approveInventory(
+      @Schema(
+          description = "ID do inventário",
+          example = "1"
+      )
+      Integer id,
+
+      @Valid
+      ApproveInventoryRequestDTO input,
 
       Authentication authentication
   );

@@ -330,6 +330,12 @@ class InventoryControllerTests {
         """.formatted(message);
   }
 
+  private String approveBody(String message) {
+    return """
+        {"message": "%s"}
+        """.formatted(message);
+  }
+
   // ---------------------------------------------------------------------------
   // GET /api/inventories/mine
   // ---------------------------------------------------------------------------
@@ -1066,6 +1072,241 @@ class InventoryControllerTests {
             patch("/api/inventories/pending/{id}/reject", "abc")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(rejectBody("Motivo"))
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isBadRequest());
+  }
+
+  // ---------------------------------------------------------------------------
+  // PATCH /api/inventories/pending/{id}/approve
+  // ---------------------------------------------------------------------------
+
+  @Test
+  @DisplayName("Should return 200 and approve an inventory under review")
+  void approveInventorySuccess() throws Exception {
+
+    InventoryEntity inventory = createInventory("Inventário Pendente", employeeOther);
+    String message = "Dados conferidos";
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            patch("/api/inventories/pending/{id}/approve", inventory.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(approveBody(message))
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(inventory.getId()))
+        .andExpect(jsonPath("$.status").value(InventoryStatusEnum.APPROVED.name()))
+        .andExpect(jsonPath("$.validationMessage").value(message));
+
+    InventoryEntity updated = inventoryRepository.findById(inventory.getId()).orElseThrow();
+
+    assertEquals(InventoryStatusEnum.APPROVED, updated.getStatus());
+    assertEquals(message, updated.getStatusMessage());
+  }
+
+  @Test
+  @DisplayName("Should no longer list an approved inventory as pending")
+  void approveInventoryRemovesItFromPendingList() throws Exception {
+
+    InventoryEntity inventory = createInventory("Inventário Pendente");
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            patch("/api/inventories/pending/{id}/approve", inventory.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(approveBody("Motivo"))
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk());
+
+    mockMvc.perform(
+            get("/api/inventories/pending")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.inventories").isEmpty())
+        .andExpect(jsonPath("$.totalCount").value(0));
+  }
+
+  @Test
+  @DisplayName("Should return 404 when approving an inventory that does not exist")
+  void approveInventoryNotFound() throws Exception {
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            patch("/api/inventories/pending/{id}/approve", Integer.MAX_VALUE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(approveBody("Motivo"))
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isNotFound());
+  }
+
+  @Test
+  @DisplayName("Should return 404 when approving an inventory from another department")
+  void approveInventoryFromAnotherDepartment() throws Exception {
+
+    InventoryEntity inventory = createInventory(
+        "Inventário Outro Depto",
+        employeeOther,
+        otherDepartment,
+        InventoryStatusEnum.UNDER_REVIEW
+    );
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            patch("/api/inventories/pending/{id}/approve", inventory.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(approveBody("Motivo"))
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isNotFound());
+
+    InventoryEntity unchanged = inventoryRepository.findById(inventory.getId()).orElseThrow();
+    assertEquals(InventoryStatusEnum.UNDER_REVIEW, unchanged.getStatus());
+  }
+
+  @Test
+  @DisplayName("Should return 404 when approving an inventory that is already rejected")
+  void approveInventoryAlreadyRejected() throws Exception {
+
+    InventoryEntity inventory = createInventory(
+        "Inventário Já Rejeitado",
+        employeeActive,
+        department,
+        InventoryStatusEnum.REJECTED
+    );
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            patch("/api/inventories/pending/{id}/approve", inventory.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(approveBody("Novo motivo"))
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isNotFound());
+
+    InventoryEntity unchanged = inventoryRepository.findById(inventory.getId()).orElseThrow();
+    assertEquals(InventoryStatusEnum.REJECTED, unchanged.getStatus());
+    assertNotEquals("Novo motivo", unchanged.getStatusMessage());
+  }
+
+  @Test
+  @DisplayName("Should return 404 when approving an inventory that is already approved")
+  void approveInventoryAlreadyApproved() throws Exception {
+
+    InventoryEntity inventory = createInventory(
+        "Inventário Já Aprovado",
+        employeeActive,
+        department,
+        InventoryStatusEnum.APPROVED
+    );
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            patch("/api/inventories/pending/{id}/approve", inventory.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(approveBody("Novo motivo"))
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isNotFound());
+
+    InventoryEntity unchanged = inventoryRepository.findById(inventory.getId()).orElseThrow();
+    assertEquals(InventoryStatusEnum.APPROVED, unchanged.getStatus());
+    assertNotEquals("Novo motivo", unchanged.getStatusMessage());
+  }
+
+  @Test
+  @DisplayName("Should return 401 when approving without JWT")
+  void approveInventoryWithoutAuthentication() throws Exception {
+
+    InventoryEntity inventory = createInventory("Inventário Pendente");
+
+    mockMvc.perform(
+            patch("/api/inventories/pending/{id}/approve", inventory.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(approveBody("Motivo"))
+        )
+        .andExpect(status().isUnauthorized());
+
+    InventoryEntity unchanged = inventoryRepository.findById(inventory.getId()).orElseThrow();
+    assertEquals(InventoryStatusEnum.UNDER_REVIEW, unchanged.getStatus());
+  }
+
+  @Test
+  @DisplayName("Should return 401 when approving with an invalid JWT")
+  void approveInventoryWithInvalidToken() throws Exception {
+
+    InventoryEntity inventory = createInventory("Inventário Pendente");
+
+    mockMvc.perform(
+            patch("/api/inventories/pending/{id}/approve", inventory.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(approveBody("Motivo"))
+                .header("Authorization", "Bearer token-invalido")
+        )
+        .andExpect(status().isUnauthorized());
+  }
+
+  @ParameterizedTest(name = "Should return 400 for invalid approve body: {0}")
+  @ValueSource(strings = {
+      "{}",
+      "{\"message\":\"\"}",
+      "{\"message\":\"   \"}",
+      "{invalid-json"
+  })
+  void approveInventoryWithInvalidBody(String body) throws Exception {
+
+    InventoryEntity inventory = createInventory("Inventário Pendente");
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            patch("/api/inventories/pending/{id}/approve", inventory.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body)
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isBadRequest());
+
+    InventoryEntity unchanged = inventoryRepository.findById(inventory.getId()).orElseThrow();
+    assertEquals(InventoryStatusEnum.UNDER_REVIEW, unchanged.getStatus());
+  }
+
+  @Test
+  @DisplayName("Should return 400 when approving without a request body")
+  void approveInventoryWithoutBody() throws Exception {
+
+    InventoryEntity inventory = createInventory("Inventário Pendente");
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            patch("/api/inventories/pending/{id}/approve", inventory.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  @DisplayName("Should return 400 when the id is not a number")
+  void approveInventoryWithInvalidId() throws Exception {
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            patch("/api/inventories/pending/{id}/approve", "abc")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(approveBody("Motivo"))
                 .header("Authorization", "Bearer " + token)
         )
         .andExpect(status().isBadRequest());
