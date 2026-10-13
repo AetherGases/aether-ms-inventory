@@ -21,10 +21,9 @@ import org.springframework.test.web.servlet.MvcResult;
 import com.aether.ms_inventory.shared.persistence.redis.entities.InputInventoryDocument;
 import java.util.ArrayList;
 import java.util.List;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -45,6 +44,7 @@ class InventoryControllerTests {
   private static final String PERMISSION_GROUP_NAME = "Funcionário";
   private static final String PERMISSION_NAME = "Relatórios";
   private static final String DEPARTMENT_NAME = "test depto";
+  private static final String OTHER_DEPARTMENT_NAME = "test depto outro";
 
   @Autowired
   private MockMvc mockMvc;
@@ -82,6 +82,7 @@ class InventoryControllerTests {
   private EnterpriseEntity enterprise;
   private UnitEntity unit;
   private DepartmentEntity department;
+  private DepartmentEntity otherDepartment;
 
   private EmployeeEntity employeeActive;
   private EmployeeEntity employeeOther;
@@ -202,7 +203,7 @@ class InventoryControllerTests {
         .forEach(permissionRepository::deleteById);
 
     departmentRepository.findAll().stream()
-        .filter(d -> DEPARTMENT_NAME.equals(d.getName()))
+        .filter(d -> OTHER_DEPARTMENT_NAME.equals(d.getName()) || DEPARTMENT_NAME.equals(d.getName()))
         .map(DepartmentEntity::getId)
         .forEach(departmentRepository::deleteById);
 
@@ -234,6 +235,10 @@ class InventoryControllerTests {
 
     if (permission != null && permission.getId() != null) {
       permissionRepository.deleteById(permission.getId());
+    }
+
+    if (otherDepartment != null && otherDepartment.getId() != null) {
+      departmentRepository.deleteById(otherDepartment.getId());
     }
 
     if (department != null && department.getId() != null) {
@@ -296,6 +301,33 @@ class InventoryControllerTests {
     return """
         {"name": "%s", "fileName": "%s", "path": "%s"}
         """.formatted(name, fileName, path);
+  }
+
+  private InventoryEntity createInventory(
+      String name,
+      EmployeeEntity owner,
+      DepartmentEntity dept,
+      InventoryStatusEnum status
+  ) {
+    InventoryEntity inventory = new InventoryEntity();
+
+    inventory.setName(name);
+    inventory.setDepartment(dept);
+    inventory.setOwnerEmployee(owner);
+    inventory.setStatus(status);
+    inventory.setType(InventoryTypeEnum.INPUT);
+
+    inventoryRepository.save(inventory);
+
+    inventoriesIds.add(inventory.getId());
+
+    return inventory;
+  }
+
+  private String rejectBody(String message) {
+    return """
+        {"message": "%s"}
+        """.formatted(message);
   }
 
   // ---------------------------------------------------------------------------
@@ -828,6 +860,212 @@ class InventoryControllerTests {
                         com.aether.ms_inventory.shared.AetherConstants.MAX_TAKE + 1
                     )
                 )
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isBadRequest());
+  }
+
+  // ---------------------------------------------------------------------------
+  // PATCH /api/inventories/pending/{id}/reject
+  // ---------------------------------------------------------------------------
+
+  @Test
+  @DisplayName("Should return 200 and reject an inventory under review")
+  void rejectInventorySuccess() throws Exception {
+
+    InventoryEntity inventory = createInventory("Inventário Pendente", employeeOther);
+    String message = "Dados inconsistentes no arquivo";
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            patch("/api/inventories/pending/{id}/reject", inventory.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(rejectBody(message))
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk());
+
+    InventoryEntity updated = inventoryRepository.findById(inventory.getId()).orElseThrow();
+
+    assertEquals(InventoryStatusEnum.REJECTED, updated.getStatus());
+    assertEquals(message, updated.getStatusMessage());
+  }
+
+  @Test
+  @DisplayName("Should no longer list a rejected inventory as pending")
+  void rejectInventoryRemovesItFromPendingList() throws Exception {
+
+    InventoryEntity inventory = createInventory("Inventário Pendente");
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            patch("/api/inventories/pending/{id}/reject", inventory.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(rejectBody("Motivo"))
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk());
+
+    mockMvc.perform(
+            get("/api/inventories/pending")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.inventories").isEmpty())
+        .andExpect(jsonPath("$.totalCount").value(0));
+  }
+
+  @Test
+  @DisplayName("Should return 404 when the inventory does not exist")
+  void rejectInventoryNotFound() throws Exception {
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            patch("/api/inventories/pending/{id}/reject", Integer.MAX_VALUE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(rejectBody("Motivo"))
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isNotFound());
+  }
+
+  @Test
+  @DisplayName("Should return 404 when the inventory belongs to another department")
+  void rejectInventoryFromAnotherDepartment() throws Exception {
+
+    InventoryEntity inventory = createInventory(
+        "Inventário Outro Depto",
+        employeeOther,
+        otherDepartment,
+        InventoryStatusEnum.UNDER_REVIEW
+    );
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            patch("/api/inventories/pending/{id}/reject", inventory.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(rejectBody("Motivo"))
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isNotFound());
+
+    InventoryEntity unchanged = inventoryRepository.findById(inventory.getId()).orElseThrow();
+    assertEquals(InventoryStatusEnum.UNDER_REVIEW, unchanged.getStatus());
+  }
+
+  @Test
+  @DisplayName("Should return 404 when the inventory is not under review")
+  void rejectInventoryNotUnderReview() throws Exception {
+
+    InventoryEntity inventory = createInventory(
+        "Inventário Já Rejeitado",
+        employeeActive,
+        department,
+        InventoryStatusEnum.REJECTED
+    );
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            patch("/api/inventories/pending/{id}/reject", inventory.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(rejectBody("Novo motivo"))
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isNotFound());
+
+    InventoryEntity unchanged = inventoryRepository.findById(inventory.getId()).orElseThrow();
+    assertEquals(InventoryStatusEnum.REJECTED, unchanged.getStatus());
+    assertNotEquals("Novo motivo", unchanged.getStatusMessage());
+  }
+
+  @Test
+  @DisplayName("Should return 401 when rejecting without JWT")
+  void rejectInventoryWithoutAuthentication() throws Exception {
+
+    InventoryEntity inventory = createInventory("Inventário Pendente");
+
+    mockMvc.perform(
+            patch("/api/inventories/pending/{id}/reject", inventory.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(rejectBody("Motivo"))
+        )
+        .andExpect(status().isUnauthorized());
+
+    InventoryEntity unchanged = inventoryRepository.findById(inventory.getId()).orElseThrow();
+    assertEquals(InventoryStatusEnum.UNDER_REVIEW, unchanged.getStatus());
+  }
+
+  @Test
+  @DisplayName("Should return 401 when rejecting with an invalid JWT")
+  void rejectInventoryWithInvalidToken() throws Exception {
+
+    InventoryEntity inventory = createInventory("Inventário Pendente");
+
+    mockMvc.perform(
+            patch("/api/inventories/pending/{id}/reject", inventory.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(rejectBody("Motivo"))
+                .header("Authorization", "Bearer token-invalido")
+        )
+        .andExpect(status().isUnauthorized());
+  }
+
+  @ParameterizedTest(name = "Should return 400 for invalid reject body: {0}")
+  @ValueSource(strings = {
+      "{}",
+      "{\"message\":\"\"}",
+      "{\"message\":\"   \"}",
+      "{invalid-json"
+  })
+  void rejectInventoryWithInvalidBody(String body) throws Exception {
+
+    InventoryEntity inventory = createInventory("Inventário Pendente");
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            patch("/api/inventories/pending/{id}/reject", inventory.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body)
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isBadRequest());
+
+    InventoryEntity unchanged = inventoryRepository.findById(inventory.getId()).orElseThrow();
+    assertEquals(InventoryStatusEnum.UNDER_REVIEW, unchanged.getStatus());
+  }
+
+  @Test
+  @DisplayName("Should return 400 when rejecting without a request body")
+  void rejectInventoryWithoutBody() throws Exception {
+
+    InventoryEntity inventory = createInventory("Inventário Pendente");
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            patch("/api/inventories/pending/{id}/reject", inventory.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  @DisplayName("Should return 400 when the id is not a number")
+  void rejectInventoryWithInvalidId() throws Exception {
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            patch("/api/inventories/pending/{id}/reject", "abc")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(rejectBody("Motivo"))
                 .header("Authorization", "Bearer " + token)
         )
         .andExpect(status().isBadRequest());

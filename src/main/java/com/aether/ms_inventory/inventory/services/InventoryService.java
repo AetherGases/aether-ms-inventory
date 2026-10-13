@@ -130,15 +130,6 @@ public class InventoryService {
     inventory.setStatusMessage(input.message());
     inventoryRepository.save(inventory);
 
-    return new RejectInventoryOutputDTO(
-        inventory.getId(),
-        inventory.getName(),
-        inventory.getDescription(),
-        inventory.getType(),
-        inventory.getStatus(),
-        inventory.getStatusMessage(),
-        inventory.getCreatedAt(),
-        inventory.getUpdatedAt()
-    );
+    return InventoryMapper.convertRejectInventoryEntityToOutput(inventory);
   }
 }

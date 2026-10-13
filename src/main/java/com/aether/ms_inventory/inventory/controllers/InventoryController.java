@@ -92,7 +92,7 @@ public class InventoryController implements InventoryControllerDocs {
     );
   }
 
-  @PatchMapping("/penging/{id}/reject")
+  @PatchMapping("/pending/{id}/reject")
   public ResponseEntity<RejectInventoryOutputDTO> rejectInventory(
       @PathVariable()
       @Schema(

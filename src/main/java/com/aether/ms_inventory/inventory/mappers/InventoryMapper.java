@@ -6,6 +6,7 @@ import com.aether.ms_inventory.inventory.dto.input.RegisterInventoryInputDTO;
 import com.aether.ms_inventory.inventory.dto.output.FindManyPendingInventoriesOutputDTO;
 import com.aether.ms_inventory.inventory.dto.output.FindMyInventoriesHistoryOutputDTO;
 import com.aether.ms_inventory.inventory.dto.output.RegisterInventoryOutputDTO;
+import com.aether.ms_inventory.inventory.dto.output.RejectInventoryOutputDTO;
 import com.aether.ms_inventory.inventory.dto.query_params.FindManyPendingInventoriesQueryParamsDTO;
 import com.aether.ms_inventory.inventory.dto.query_params.FindMyInventoriesQueryParamsDTO;
 import com.aether.ms_inventory.inventory.dto.request.RegisterInventoryRequestDTO;
@@ -92,6 +93,19 @@ public class InventoryMapper {
           );
         }).toList(),
         count
+    );
+  }
+
+  public static RejectInventoryOutputDTO convertRejectInventoryEntityToOutput(InventoryEntity inventory){
+    return new RejectInventoryOutputDTO(
+        inventory.getId(),
+        NormalizeOutput.name(inventory.getName()),
+        inventory.getDescription(),
+        inventory.getType(),
+        inventory.getStatus(),
+        inventory.getStatusMessage(),
+        inventory.getCreatedAt(),
+        inventory.getUpdatedAt()
     );
   }
 }
