@@ -4,19 +4,8 @@ import com.aether.ms_inventory.shared.dto.output.AekoReportOutputDTO;
 import com.aether.ms_inventory.shared.dto.request.AekoReportRequestDTO;
 import com.aether.ms_inventory.shared.enums.InventoryStatusEnum;
 import com.aether.ms_inventory.shared.exceptions.InventoryProcessingException;
-import com.aether.ms_inventory.shared.persistence.postgres.entities.CategoryEntity;
-import com.aether.ms_inventory.shared.persistence.postgres.entities.EmissionEntity;
-import com.aether.ms_inventory.shared.persistence.postgres.entities.GasEntity;
-import com.aether.ms_inventory.shared.persistence.postgres.entities.InventoryEntity;
-import com.aether.ms_inventory.shared.persistence.postgres.entities.ReductionEntity;
-import com.aether.ms_inventory.shared.persistence.postgres.entities.ScopeEntity;
-import com.aether.ms_inventory.shared.persistence.postgres.entities.StorageFileEntity;
-import com.aether.ms_inventory.shared.persistence.postgres.repositories.CategoryRepository;
-import com.aether.ms_inventory.shared.persistence.postgres.repositories.EmissionRepository;
-import com.aether.ms_inventory.shared.persistence.postgres.repositories.GasRepository;
-import com.aether.ms_inventory.shared.persistence.postgres.repositories.InventoryRepository;
-import com.aether.ms_inventory.shared.persistence.postgres.repositories.ReductionRepository;
-import com.aether.ms_inventory.shared.persistence.postgres.repositories.ScopeRepository;
+import com.aether.ms_inventory.shared.persistence.postgres.entities.*;
+import com.aether.ms_inventory.shared.persistence.postgres.repositories.*;
 import com.aether.ms_inventory.shared.workers.InventoryProcessingContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +27,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class InventoryProcessingPersistence {
+  private final EnterpriseRepository enterpriseRepository;
   private static final int MAX_DESCRIPTION = 150;
   private static final int MAX_METHODOLOGY = 150;
   private static final int MAX_STATUS_MESSAGE = 100;
@@ -63,8 +53,12 @@ public class InventoryProcessingPersistence {
     if (file == null || file.getPath() == null)
       throw new InventoryProcessingException("Inventário sem arquivo associado", false);
 
-    if (inventory.getOwnerEmployee() == null)
+    EmployeeEntity owner = inventory.getOwnerEmployee();
+
+    if (owner == null)
       throw new InventoryProcessingException("Inventário sem usuário responsável", false);
+
+    EnterpriseEntity enterprise = owner.getDepartment().getUnit().getEnterprise();
 
     List<AekoReportRequestDTO.Gas> gases = gasRepository.findAll().stream()
         .map(gas -> new AekoReportRequestDTO.Gas(gas.getId(), gas.getFormula()))
@@ -85,7 +79,8 @@ public class InventoryProcessingPersistence {
     return Optional.of(new InventoryProcessingContext(
         inventory.getId(),
         file.getPath(),
-        inventory.getOwnerEmployee().getId(),
+        owner.getId(),
+        enterprise.getId(),
         gases,
         scopes,
         categories
@@ -102,9 +97,8 @@ public class InventoryProcessingPersistence {
       return;
     }
 
-    if (response == null || response.emissions() == null || response.emissions().isEmpty()) {
+    if (response == null || response.emissions() == null || response.emissions().isEmpty())
       throw new InventoryProcessingException("A IA não retornou emissões para o inventário", true);
-    }
 
     Map<Integer, GasEntity> gases = indexById(gasRepository.findAll(), GasEntity::getId);
     Map<Integer, ScopeEntity> scopes = indexById(scopeRepository.findAll(), ScopeEntity::getId);
@@ -115,9 +109,8 @@ public class InventoryProcessingPersistence {
     List<ReductionEntity> reductions = new ArrayList<>();
 
     for (AekoReportOutputDTO.Emission item : response.emissions()) {
-      if (item == null || item.quantityCo2e() == null) {
+      if (item == null || item.quantityCo2e() == null)
         throw new InventoryProcessingException("A IA retornou uma emissão sem quantidade", true);
-      }
 
       CategoryEntity category = lookup(categories, item.category(), "categoria", false);
 
@@ -180,6 +173,18 @@ public class InventoryProcessingPersistence {
       if (inventory.getStatus() != InventoryStatusEnum.PROCESSING) return;
 
       inventory.setStatus(InventoryStatusEnum.PROCESSING_FAILED);
+      inventory.setUpdatedAt(LocalDateTime.now());
+
+      inventoryRepository.save(inventory);
+    });
+  }
+
+  public void markInsufficientData(Integer inventoryId, List<String> fields){
+    inventoryRepository.findByIdForUpdate(inventoryId).ifPresent(inventory -> {
+      if (inventory.getStatus() != InventoryStatusEnum.PROCESSING) return;
+
+      inventory.setStatus(InventoryStatusEnum.INSUFFICIENT_DATA);
+      inventory.setStatusMessage(String.join(", ", fields));
       inventory.setUpdatedAt(LocalDateTime.now());
 
       inventoryRepository.save(inventory);

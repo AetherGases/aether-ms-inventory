@@ -8,6 +8,7 @@ public record InventoryProcessingContext(
     Integer inventoryId,
     String fileUrl,
     Integer userId,
+    Integer idExternalCompany,
     List<AekoReportRequestDTO.Gas> gases,
     List<AekoReportRequestDTO.Scope> scopes,
     List<AekoReportRequestDTO.Category> categories

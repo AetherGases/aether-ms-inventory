@@ -6,6 +6,7 @@ import com.aether.ms_inventory.shared.exceptions.InventoryProcessingException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -23,13 +24,16 @@ public class AekoClient {
 
   private final RestClient restClient;
   private final ObjectMapper objectMapper;
+  private final String authenticationKey;
 
   public AekoClient(
       ObjectMapper objectMapper,
       @Value("${aeko.base-url}") String baseUrl,
       @Value("${aeko.connect-timeout-seconds:5}") long connectTimeoutSeconds,
-      @Value("${aeko.read-timeout-seconds:120}") long readTimeoutSeconds
+      @Value("${aeko.read-timeout-seconds:120}") long readTimeoutSeconds,
+      @Value("${aeko.authentication-key}") String authenticationKey
   ) {
+    this.authenticationKey = authenticationKey;
     this.objectMapper = objectMapper;
 
     HttpClient httpClient = HttpClient.newBuilder()
@@ -51,34 +55,37 @@ public class AekoClient {
     try {
       String requestBody = objectMapper.writeValueAsString(request);
 
+      System.out.println(requestBody);
       responseBody = restClient.post()
           .uri(REPORT_PATH)
           .contentType(MediaType.APPLICATION_JSON)
           .accept(MediaType.APPLICATION_JSON)
+          .header("authentication-key", authenticationKey)
           .body(requestBody)
           .retrieve()
           .body(String.class);
     } catch (JsonProcessingException e) {
-      throw new InventoryProcessingException("Falha ao montar a requisição para a IA", e, false);
+      throw new InventoryProcessingException("Falha ao montar a requisição para a IA", e, false, HttpStatus.BAD_REQUEST);
     } catch (RestClientResponseException e) {
       int status = e.getStatusCode().value();
       boolean retryable = status >= 500 || status == 408 || status == 429;
 
       throw new InventoryProcessingException(
-          "A IA respondeu com erro (HTTP " + status + ")", e, retryable
+          "A IA respondeu com erro (HTTP " + status + ")", e, retryable, HttpStatus.valueOf(status)
       );
     } catch (RestClientException e) {
+      System.out.println(e);
       throw new InventoryProcessingException("Falha ao se comunicar com a IA", e, true);
     }
 
-    if (responseBody == null || responseBody.isBlank()) {
-      throw new InventoryProcessingException("A IA retornou uma resposta vazia", true);
-    }
+    if (responseBody == null || responseBody.isBlank())
+      throw new InventoryProcessingException("A IA retornou uma resposta vazia", true, HttpStatus.EXPECTATION_FAILED);
 
     try {
+      System.out.println(responseBody);
       return objectMapper.readValue(responseBody,AekoReportOutputDTO.class);
     } catch (JsonProcessingException e) {
-      throw new InventoryProcessingException("A IA retornou uma resposta inválida", e, true);
+      throw new InventoryProcessingException("A IA retornou uma resposta inválida", e, true, HttpStatus.EXPECTATION_FAILED);
     }
   }
 }

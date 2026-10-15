@@ -8,6 +8,7 @@ public record AekoReportRequestDTO(
     @JsonProperty("id_external_context_inventory") Integer idExternalContextInventory,
     @JsonProperty("inventory") String inventory,
     @JsonProperty("id_external_user") Integer idExternalUser,
+    @JsonProperty("id_external_company") Integer idExternalCompany,
     @JsonProperty("gases") List<Gas> gases,
     @JsonProperty("scopes") List<Scope> scopes,
     @JsonProperty("categories") List<Category> categories

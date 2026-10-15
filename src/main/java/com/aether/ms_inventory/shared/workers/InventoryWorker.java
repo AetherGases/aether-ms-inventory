@@ -6,11 +6,19 @@ import com.aether.ms_inventory.shared.services.InventoryProcessingPersistence;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+import java.util.ArrayList;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Component
@@ -24,6 +32,12 @@ public class InventoryWorker {
   private final int maxAttempts;
   private final Duration retryDelay;
   private final Duration lockTtl;
+
+  private static final Pattern INVENTORY_PATTERN = Pattern.compile(
+      "```inventory\\s*(\\{.*?\\})\\s*```",
+      Pattern.DOTALL
+  );
+  private final ObjectMapper objectMapper = new ObjectMapper();
 
   public InventoryWorker(
       InputInventoryRepository queue,
@@ -75,7 +89,7 @@ public class InventoryWorker {
     } catch (RuntimeException e) {
       log.error("Erro inesperado ao processar o inventário {}", id, e);
       keepLock = handleFailure(
-          id, new InventoryProcessingException("Erro inesperado ao processar o inventário", e, true)
+          id, new InventoryProcessingException("Erro inesperado ao processar o inventário", e, true, HttpStatus.INTERNAL_SERVER_ERROR)
       );
     } finally {
       if (!keepLock) {
@@ -97,7 +111,12 @@ public class InventoryWorker {
     log.error("Inventário {} marcado como PROCESSING_FAILED: {}", id, error.getMessage(), error);
 
     try {
-      persistence.markFailed(id, error.getMessage());
+      if (error.getStatus() == HttpStatus.UNPROCESSABLE_CONTENT) {
+        persistence.markInsufficientData(id, getInsufficientFields(error.getMessage()));
+      } else {
+        persistence.markFailed(id, error.getMessage());
+      }
+
       queue.deleteById(id);
       queue.clearAttempts(id);
       return false;
@@ -105,6 +124,38 @@ public class InventoryWorker {
       log.error("Não foi possível marcar o inventário {} como PROCESSING_FAILED", id, e);
       queue.delayRetry(id, retryDelay);
       return true;
+    }
+  }
+
+  private List<String> getInsufficientFields(String message) {
+    Matcher matcher = INVENTORY_PATTERN.matcher(message);
+
+    if (!matcher.find()) {
+      return List.of();
+    }
+
+    String json = matcher.group(1);
+
+    try {
+      JsonNode inventory = objectMapper.readTree(json);
+      List<String> fields = new ArrayList<>();
+
+      inventory.fields().forEachRemaining(entry -> {
+        JsonNode value = entry.getValue();
+
+        if (value.isNull()
+            || (value.isTextual() && value.asText().isBlank())
+            || (value.isArray() && value.isEmpty())
+            || (value.isObject() && value.isEmpty())) {
+          fields.add(entry.getKey());
+        }
+      });
+
+      return fields;
+
+    } catch (Exception e) {
+      log.error("Não foi possível interpretar os dados insuficientes", e);
+      return List.of();
     }
   }
 }

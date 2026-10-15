@@ -36,6 +36,7 @@ public class InventoryProcessor {
         context.inventoryId(),
         markdown,
         context.userId(),
+        context.idExternalCompany(),
         context.gases(),
         context.scopes(),
         context.categories()
