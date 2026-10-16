@@ -670,10 +670,11 @@ public class InventoryServiceTests {
     when(getUserInfosService.getDepartment(validatorId))
         .thenReturn(department);
 
-    when(inventoryRepository.findByIdAndDepartmentIdAndStatus(
+    when(inventoryRepository.findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
         inventoryId,
         departmentId,
-        InventoryStatusEnum.UNDER_REVIEW
+        InventoryStatusEnum.UNDER_REVIEW,
+        validatorId
     )).thenReturn(Optional.of(inventory));
 
     RejectInventoryOutputDTO output = inventoryService.rejectInventory(input);
@@ -691,10 +692,11 @@ public class InventoryServiceTests {
     assertNotNull(output);
 
     verify(getUserInfosService).getDepartment(validatorId);
-    verify(inventoryRepository).findByIdAndDepartmentIdAndStatus(
+    verify(inventoryRepository).findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
         inventoryId,
         departmentId,
-        InventoryStatusEnum.UNDER_REVIEW
+        InventoryStatusEnum.UNDER_REVIEW,
+        validatorId
     );
   }
 
@@ -714,10 +716,11 @@ public class InventoryServiceTests {
     when(getUserInfosService.getDepartment(validatorId))
         .thenReturn(department);
 
-    when(inventoryRepository.findByIdAndDepartmentIdAndStatus(
+    when(inventoryRepository.findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
         inventoryId,
         departmentId,
-        InventoryStatusEnum.UNDER_REVIEW
+        InventoryStatusEnum.UNDER_REVIEW,
+        validatorId
     )).thenReturn(Optional.empty());
 
     NotFoundException exception = assertThrows(
@@ -746,7 +749,8 @@ public class InventoryServiceTests {
     when(getUserInfosService.getDepartment(validatorId))
         .thenReturn(department);
 
-    when(inventoryRepository.findByIdAndDepartmentIdAndStatus(
+    when(inventoryRepository.findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
+        any(),
         any(),
         any(),
         any()
@@ -757,10 +761,11 @@ public class InventoryServiceTests {
         () -> inventoryService.rejectInventory(input)
     );
 
-    verify(inventoryRepository).findByIdAndDepartmentIdAndStatus(
+    verify(inventoryRepository).findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
         eq(inventoryId),
         eq(departmentId),
-        eq(InventoryStatusEnum.UNDER_REVIEW)
+        eq(InventoryStatusEnum.UNDER_REVIEW),
+        eq(validatorId)
     );
   }
 
@@ -802,10 +807,11 @@ public class InventoryServiceTests {
     when(getUserInfosService.getDepartment(validatorId))
         .thenReturn(department);
 
-    when(inventoryRepository.findByIdAndDepartmentIdAndStatus(
+    when(inventoryRepository.findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
         inventoryId,
         departmentId,
-        InventoryStatusEnum.UNDER_REVIEW
+        InventoryStatusEnum.UNDER_REVIEW,
+        validatorId
     )).thenReturn(Optional.of(inventory));
 
     when(inventoryRepository.save(any(InventoryEntity.class)))
@@ -844,10 +850,11 @@ public class InventoryServiceTests {
     when(getUserInfosService.getDepartment(validatorId))
         .thenReturn(department);
 
-    when(inventoryRepository.findByIdAndDepartmentIdAndStatus(
+    when(inventoryRepository.findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
         inventoryId,
         departmentId,
-        InventoryStatusEnum.UNDER_REVIEW
+        InventoryStatusEnum.UNDER_REVIEW,
+        validatorId
     )).thenReturn(Optional.of(inventory));
 
     ApproveInventoryOutputDTO output = inventoryService.approveInventory(input);
@@ -865,10 +872,11 @@ public class InventoryServiceTests {
     assertNotNull(output);
 
     verify(getUserInfosService).getDepartment(validatorId);
-    verify(inventoryRepository).findByIdAndDepartmentIdAndStatus(
+    verify(inventoryRepository).findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
         inventoryId,
         departmentId,
-        InventoryStatusEnum.UNDER_REVIEW
+        InventoryStatusEnum.UNDER_REVIEW,
+        validatorId
     );
   }
 
@@ -888,10 +896,11 @@ public class InventoryServiceTests {
     when(getUserInfosService.getDepartment(validatorId))
         .thenReturn(department);
 
-    when(inventoryRepository.findByIdAndDepartmentIdAndStatus(
+    when(inventoryRepository.findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
         inventoryId,
         departmentId,
-        InventoryStatusEnum.UNDER_REVIEW
+        InventoryStatusEnum.UNDER_REVIEW,
+        validatorId
     )).thenReturn(Optional.empty());
 
     NotFoundException exception = assertThrows(
@@ -920,7 +929,8 @@ public class InventoryServiceTests {
     when(getUserInfosService.getDepartment(validatorId))
         .thenReturn(department);
 
-    when(inventoryRepository.findByIdAndDepartmentIdAndStatus(
+    when(inventoryRepository.findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
+        any(),
         any(),
         any(),
         any()
@@ -931,10 +941,11 @@ public class InventoryServiceTests {
         () -> inventoryService.approveInventory(input)
     );
 
-    verify(inventoryRepository).findByIdAndDepartmentIdAndStatus(
+    verify(inventoryRepository).findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
         eq(inventoryId),
         eq(departmentId),
-        eq(InventoryStatusEnum.UNDER_REVIEW)
+        eq(InventoryStatusEnum.UNDER_REVIEW),
+        eq(validatorId)
     );
   }
 
@@ -976,10 +987,11 @@ public class InventoryServiceTests {
     when(getUserInfosService.getDepartment(validatorId))
         .thenReturn(department);
 
-    when(inventoryRepository.findByIdAndDepartmentIdAndStatus(
+    when(inventoryRepository.findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
         inventoryId,
         departmentId,
-        InventoryStatusEnum.UNDER_REVIEW
+        InventoryStatusEnum.UNDER_REVIEW,
+        validatorId
     )).thenReturn(Optional.of(inventory));
 
     when(inventoryRepository.save(any(InventoryEntity.class)))

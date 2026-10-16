@@ -97,6 +97,7 @@ public class InventoryService {
 
     Specification<InventoryEntity> spec = Specification
         .where(InventorySpecification.withName(input.name()))
+        .and(InventorySpecification.withNotOwnerEmployeeId(input.userId()))
         .and(InventorySpecification.withStatus(InventoryStatusEnum.UNDER_REVIEW))
         .and(InventorySpecification.withDepartment(department.getId()));
 
@@ -111,12 +112,35 @@ public class InventoryService {
     return InventoryMapper.convertFindManyPendingEntitiesToOutput(inventories, count);
   }
 
+  @Transactional(readOnly = true)
+  public FindManyReviewedInventoriesOutputDTO findManyReviewedInventories(
+      FindManyReviewedInventoriesInputDTO input
+  ){
+    DepartmentEntity department = getUserInfosService.getDepartment(input.userId());
+
+    Specification<InventoryEntity> spec = Specification
+        .where(InventorySpecification.withName(input.name()))
+        .and(InventorySpecification.withStatus(input.status()))
+        .and(InventorySpecification.withNotProcessing())
+        .and(InventorySpecification.withDepartment(department.getId()));
+
+    List<InventoryEntity> inventories = inventoryRepository.findWithPagination(
+        spec,
+        input.skip(),
+        input.take()
+    );
+
+    long count = inventoryRepository.count(spec);
+
+    return InventoryMapper.convertFindManyReviewedEntitiesToOutput(inventories, count);
+  }
+
   public RejectInventoryOutputDTO rejectInventory(
       RejectInventoryInputDTO input
   ){
     DepartmentEntity department = getUserInfosService.getDepartment(input.validatorId());
 
-    InventoryEntity inventory = inventoryRepository.findByIdAndDepartmentIdAndStatus(input.id(), department.getId(), InventoryStatusEnum.UNDER_REVIEW).orElseThrow(
+    InventoryEntity inventory = inventoryRepository.findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(input.id(), department.getId(), InventoryStatusEnum.UNDER_REVIEW, input.validatorId()).orElseThrow(
         () -> new NotFoundException("exception.inventory.not-found")
     );
 
@@ -132,7 +156,7 @@ public class InventoryService {
   ){
     DepartmentEntity department = getUserInfosService.getDepartment(input.validatorId());
 
-    InventoryEntity inventory = inventoryRepository.findByIdAndDepartmentIdAndStatus(input.id(), department.getId(), InventoryStatusEnum.UNDER_REVIEW).orElseThrow(
+    InventoryEntity inventory = inventoryRepository.findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(input.id(), department.getId(), InventoryStatusEnum.UNDER_REVIEW, input.validatorId()).orElseThrow(
         () -> new NotFoundException("exception.inventory.not-found")
     );
 
@@ -141,5 +165,29 @@ public class InventoryService {
     inventoryRepository.save(inventory);
 
     return InventoryMapper.convertApproveInventoryEntityToOutput(inventory);
+  }
+
+  @Transactional(readOnly = true)
+  public FindInventoryByIdOutputDTO findMineInventoryById(
+      FindInventoryByIdInputDTO input
+  ){
+    InventoryEntity inventory = inventoryRepository.findByIdAndOwnerEmployeeId(input.id(), input.userId()).orElseThrow(
+        () -> new NotFoundException("exception.inventory.not-found")
+    );
+
+    return InventoryMapper.convertFindInventoryByIdEntityToOutput(inventory);
+  }
+
+  @Transactional(readOnly = true)
+  public FindInventoryByIdOutputDTO findReviewedInventoryById(
+      FindInventoryByIdInputDTO input
+  ){
+    DepartmentEntity department = getUserInfosService.getDepartment(input.userId());
+
+    InventoryEntity inventory = inventoryRepository.findByIdAndDepartmentId(input.id(), department.getId()).orElseThrow(
+        () -> new NotFoundException("exception.inventory.not-found")
+    );
+
+    return InventoryMapper.convertFindInventoryByIdEntityToOutput(inventory);
   }
 }

@@ -11,5 +11,12 @@ import java.util.Optional;
 
 @Repository
 public interface InventoryRepository extends JpaRepository<InventoryEntity, Integer>, JpaSpecificationExecutor<InventoryEntity>, InventoryRepositoryCustom {
-  Optional<InventoryEntity> findByIdAndDepartmentIdAndStatus(Integer id, Integer departmentId, InventoryStatusEnum status);
+  Optional<InventoryEntity> findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
+      Integer id,
+      Integer departmentId,
+      InventoryStatusEnum status,
+      Integer ownerEmployeeId
+  );
+  Optional<InventoryEntity> findByIdAndDepartmentId(Integer id, Integer departmentId);
+  Optional<InventoryEntity> findByIdAndOwnerEmployeeId(Integer id, Integer ownerEmployeeId);
 }
