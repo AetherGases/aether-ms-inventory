@@ -17,9 +17,9 @@ jobs:
       postgres:
         image: postgres:16.10
         env:
-          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
-          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.CI_POSTGRES_DB }}
+          POSTGRES_USER: ${{ secrets.CI_POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD }}
         ports:
           - 5432:5432
         options: >-
@@ -31,8 +31,8 @@ jobs:
       mongo:
         image: mongo:8.0.13
         env:
-          MONGO_INITDB_ROOT_USERNAME: ${{ secrets.MONGO_USER }}
-          MONGO_INITDB_ROOT_PASSWORD: ${{ secrets.MONGO_PASSWORD }}
+          MONGO_INITDB_ROOT_USERNAME: ${{ secrets.CI_MONGO_USER }}
+          MONGO_INITDB_ROOT_PASSWORD: ${{ secrets.CI_MONGO_PASSWORD }}
         ports:
           - 27017:27017
         options: >-
@@ -64,23 +64,23 @@ jobs:
 
       - name: Create postgres database schema
         env:
-          PGPASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          PGPASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD }}
         run: |
           psql \
             -h localhost \
             -p 5432 \
-            -U "${{ secrets.POSTGRES_USER }}" \
-            -d "${{ secrets.POSTGRES_DB }}" \
+            -U "${{ secrets.CI_POSTGRES_USER }}" \
+            -d "${{ secrets.CI_POSTGRES_DB }}" \
             -f src/main/resources/postgresdb/schema.sql    
 
       - name: Test with Maven
         env:
           POSTGRES_HOST: localhost
           POSTGRES_PORT: 5432
-          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
-          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          MONGO_URL: ${{ secrets.MONGO_URL }}
+          POSTGRES_DB: ${{ secrets.CI_POSTGRES_DB }}
+          POSTGRES_USER: ${{ secrets.CI_POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD }}
+          MONGO_URL: ${{ secrets.CI_MONGO_URL }}
           REDIS_HOST: localhost
           REDIS_PORT: 6379
           REDIS_PASSWORD: ci_redis_password
