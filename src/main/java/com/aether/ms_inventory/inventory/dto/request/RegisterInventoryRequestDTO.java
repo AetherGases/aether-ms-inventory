@@ -25,6 +25,18 @@ public record RegisterInventoryRequestDTO(
     )
     String name,
 
+    @NotEmpty(message = "{validation.inventory-consolidation-approach.required}")
+    @Size(
+        min = AetherConstants.MIN_INVENTORY_CONSOLIDATION_APPROACH_LENGTH,
+        max = AetherConstants.MAX_INVENTORY_CONSOLIDATION_APPROACH_LENGTH,
+        message = "{validation.inventory-consolidation-approach.size}"
+    )
+    @Schema(
+        description = "A abordagem GHG",
+        example = "Participação acionária"
+    )
+    String consolidationApproach,
+
     @NotEmpty(message = "{validation.file-name.required}")
     @Size(
         min = AetherConstants.MIN_STORAGE_FILE_NAME_LENGTH,

@@ -37,6 +37,7 @@ class InventoryControllerTests {
   private static final String REGISTERED_INVENTORY_NAME = "Inventário Registro Teste";
   private static final String REGISTERED_FILE_NAME = "arquivo-registro-teste.xlsx";
   private static final String REGISTERED_FILE_PATH = "https://cloudinary/arquivo-registro-teste.xlsx";
+  private static final String REGISTERED_CONSOLIDATION_APPROACH = "Participação acionária";
   private static final String ENTERPRISE_CNPJ = "73414740000148";
   private static final String UNIT_CNPJ = "89307523000199";
   private static final String EMPLOYEE_ACTIVE_EMAIL = "test@test1.com";
@@ -298,9 +299,13 @@ class InventoryControllerTests {
   }
 
   private String registerBody(String name, String fileName, String path) {
+    return registerBody(name, REGISTERED_CONSOLIDATION_APPROACH, fileName, path);
+  }
+
+  private String registerBody(String name, String consolidationApproach, String fileName, String path) {
     return """
-        {"name": "%s", "fileName": "%s", "path": "%s"}
-        """.formatted(name, fileName, path);
+        {"name": "%s", "consolidationApproach": "%s", "fileName": "%s", "path": "%s"}
+        """.formatted(name, consolidationApproach, fileName, path);
   }
 
   private InventoryEntity createInventory(
@@ -314,6 +319,49 @@ class InventoryControllerTests {
     inventory.setName(name);
     inventory.setDepartment(dept);
     inventory.setOwnerEmployee(owner);
+    inventory.setStatus(status);
+    inventory.setType(InventoryTypeEnum.INPUT);
+
+    inventoryRepository.save(inventory);
+
+    inventoriesIds.add(inventory.getId());
+
+    return inventory;
+  }
+
+  private InventoryEntity createInventory(
+      String name,
+      EmployeeEntity owner,
+      InventoryStatusEnum status,
+      InventoryTypeEnum type
+  ) {
+    InventoryEntity inventory = new InventoryEntity();
+
+    inventory.setName(name);
+    inventory.setDepartment(department);
+    inventory.setOwnerEmployee(owner);
+    inventory.setStatus(status);
+    inventory.setType(type);
+
+    inventoryRepository.save(inventory);
+
+    inventoriesIds.add(inventory.getId());
+
+    return inventory;
+  }
+
+  private InventoryEntity createReviewedInventory(
+      String name,
+      EmployeeEntity owner,
+      EmployeeEntity validator,
+      InventoryStatusEnum status
+  ) {
+    InventoryEntity inventory = new InventoryEntity();
+
+    inventory.setName(name);
+    inventory.setDepartment(department);
+    inventory.setOwnerEmployee(owner);
+    inventory.setValidatorEmployee(validator);
     inventory.setStatus(status);
     inventory.setType(InventoryTypeEnum.INPUT);
 
@@ -602,6 +650,10 @@ class InventoryControllerTests {
     InputInventoryDocument savedDocument = inputInventoryRepository.findById(inventoryId);
 
     assertNotNull(savedInventory, "Inventário deveria ter sido persistido no banco");
+    assertEquals(
+        REGISTERED_CONSOLIDATION_APPROACH.trim().toLowerCase(),
+        savedInventory.getConsolidationApproach()
+    );
     assertNotNull(savedFile, "Arquivo deveria ter sido persistido no banco");
     assertEquals(REGISTERED_FILE_PATH, savedFile.getPath());
     assertNotNull(savedInventory.getStorageFile(), "Inventário deveria estar associado ao arquivo");
@@ -647,9 +699,10 @@ class InventoryControllerTests {
   @ParameterizedTest(name = "Should return 400 for invalid body: {0}")
   @ValueSource(strings = {
       "{}",
-      "{\"name\":\"\",\"fileName\":\"arquivo.csv\",\"path\":\"/uploads/arquivo.csv\"}",
-      "{\"name\":\"Inventário\",\"fileName\":\"\",\"path\":\"/uploads/arquivo.csv\"}",
-      "{\"name\":\"Inventário\",\"fileName\":\"arquivo.csv\",\"path\":\"\"}",
+      "{\"name\":\"\",\"consolidationApproach\":\"Participação acionária\",\"fileName\":\"arquivo.csv\",\"path\":\"/uploads/arquivo.csv\"}",
+      "{\"name\":\"Inventário\",\"consolidationApproach\":\"\",\"fileName\":\"arquivo.csv\",\"path\":\"/uploads/arquivo.csv\"}",
+      "{\"name\":\"Inventário\",\"consolidationApproach\":\"Participação acionária\",\"fileName\":\"\",\"path\":\"/uploads/arquivo.csv\"}",
+      "{\"name\":\"Inventário\",\"consolidationApproach\":\"Participação acionária\",\"fileName\":\"arquivo.csv\",\"path\":\"\"}",
       "{invalid-json"
   })
   void registerInventoryWithInvalidBody(String body) throws Exception {
@@ -687,7 +740,7 @@ class InventoryControllerTests {
   @DisplayName("Should return 200 and pending inventories")
   void findManyPendingInventoriesSuccess() throws Exception {
 
-    createInventory("Inventário Pendente");
+    createInventory("Inventário Pendente", employeeOther);
 
     String token = generateJwt(employeeActive);
 
@@ -705,7 +758,7 @@ class InventoryControllerTests {
   @DisplayName("Should return 200 when no query parameters are provided")
   void findManyPendingInventoriesWithoutQueryParameters() throws Exception {
 
-    createInventory("Inventário Pendente");
+    createInventory("Inventário Pendente", employeeOther);
 
     String token = generateJwt(employeeActive);
 
@@ -722,8 +775,8 @@ class InventoryControllerTests {
   @DisplayName("Should filter pending inventories by name")
   void findManyPendingInventoriesByName() throws Exception {
 
-    createInventory("Inventário A");
-    createInventory("Inventário B");
+    createInventory("Inventário A", employeeOther);
+    createInventory("Inventário B", employeeOther);
 
     String token = generateJwt(employeeActive);
 
@@ -739,7 +792,7 @@ class InventoryControllerTests {
   }
 
   @Test
-  @DisplayName("Should return pending inventories from every employee in the department")
+  @DisplayName("Should return pending inventories from other employees but not the requester's own")
   void findManyPendingInventoriesIncludesOtherEmployees() throws Exception {
 
     createInventory("Inventário Meu");
@@ -752,17 +805,18 @@ class InventoryControllerTests {
                 .header("Authorization", "Bearer " + token)
         )
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.inventories.length()").value(2))
-        .andExpect(jsonPath("$.totalCount").value(2));
+        .andExpect(jsonPath("$.inventories.length()").value(1))
+        .andExpect(jsonPath("$.inventories[0].name").value("Inventário de Outro"))
+        .andExpect(jsonPath("$.totalCount").value(1));
   }
 
   @Test
   @DisplayName("Should apply take parameter")
   void findManyPendingInventoriesWithTake() throws Exception {
 
-    createInventory("Inventário A");
-    createInventory("Inventário B");
-    createInventory("Inventário C");
+    createInventory("Inventário A", employeeOther);
+    createInventory("Inventário B", employeeOther);
+    createInventory("Inventário C", employeeOther);
 
     String token = generateJwt(employeeActive);
 
@@ -781,9 +835,9 @@ class InventoryControllerTests {
   @DisplayName("Should apply skip and take parameters")
   void findManyPendingInventoriesWithSkipAndTake() throws Exception {
 
-    createInventory("Inventário A");
-    createInventory("Inventário B");
-    createInventory("Inventário C");
+    createInventory("Inventário A", employeeOther);
+    createInventory("Inventário B", employeeOther);
+    createInventory("Inventário C", employeeOther);
 
     String token = generateJwt(employeeActive);
 
@@ -902,7 +956,7 @@ class InventoryControllerTests {
   @DisplayName("Should no longer list a rejected inventory as pending")
   void rejectInventoryRemovesItFromPendingList() throws Exception {
 
-    InventoryEntity inventory = createInventory("Inventário Pendente");
+    InventoryEntity inventory = createInventory("Inventário Pendente", employeeOther);
 
     String token = generateJwt(employeeActive);
 
@@ -1111,7 +1165,7 @@ class InventoryControllerTests {
   @DisplayName("Should no longer list an approved inventory as pending")
   void approveInventoryRemovesItFromPendingList() throws Exception {
 
-    InventoryEntity inventory = createInventory("Inventário Pendente");
+    InventoryEntity inventory = createInventory("Inventário Pendente", employeeOther);
 
     String token = generateJwt(employeeActive);
 
@@ -1310,5 +1364,855 @@ class InventoryControllerTests {
                 .header("Authorization", "Bearer " + token)
         )
         .andExpect(status().isBadRequest());
+  }
+
+  // ---------------------------------------------------------------------------
+  // GET /api/inventories/reviewed
+  // ---------------------------------------------------------------------------
+
+  @Test
+  @DisplayName("Should return 200 and reviewed inventories")
+  void findManyReviewedInventoriesSuccess() throws Exception {
+
+    createInventory(
+        "Inventário Aprovado",
+        employeeOther,
+        department,
+        InventoryStatusEnum.APPROVED
+    );
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/reviewed")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.inventories").isArray())
+        .andExpect(jsonPath("$.inventories.length()").value(1))
+        .andExpect(jsonPath("$.inventories[0].name").value("Inventário Aprovado"))
+        .andExpect(jsonPath("$.inventories[0].status").value(InventoryStatusEnum.APPROVED.name()))
+        .andExpect(jsonPath("$.totalCount").value(1));
+  }
+
+  @Test
+  @DisplayName("Should return 200 when no query parameters are provided")
+  void findManyReviewedInventoriesWithoutQueryParameters() throws Exception {
+
+    createInventory(
+        "Inventário Reprovado",
+        employeeOther,
+        department,
+        InventoryStatusEnum.REJECTED
+    );
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/reviewed")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.inventories").isArray())
+        .andExpect(jsonPath("$.totalCount").value(1));
+  }
+
+  @Test
+  @DisplayName("Should filter reviewed inventories by name")
+  void findManyReviewedInventoriesByName() throws Exception {
+
+    createInventory("Inventário A", employeeOther, department, InventoryStatusEnum.APPROVED);
+    createInventory("Inventário B", employeeOther, department, InventoryStatusEnum.APPROVED);
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/reviewed")
+                .param("name", "Inventário A")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.inventories").isArray())
+        .andExpect(jsonPath("$.inventories.length()").value(1))
+        .andExpect(jsonPath("$.totalCount").value(1));
+  }
+
+  @Test
+  @DisplayName("Should filter reviewed inventories by status")
+  void findManyReviewedInventoriesByStatus() throws Exception {
+
+    createInventory("Inventário Aprovado", employeeOther, department, InventoryStatusEnum.APPROVED);
+    createInventory("Inventário Reprovado", employeeOther, department, InventoryStatusEnum.REJECTED);
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/reviewed")
+                .param("status", InventoryStatusEnum.APPROVED.name())
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.inventories.length()").value(1))
+        .andExpect(jsonPath("$.inventories[0].name").value("Inventário Aprovado"))
+        .andExpect(jsonPath("$.totalCount").value(1));
+  }
+
+  @Test
+  @DisplayName("Should include reviewed inventories owned by the requesting user")
+  void findManyReviewedInventoriesIncludesOwnInventories() throws Exception {
+
+    createInventory("Inventário Meu", employeeActive, department, InventoryStatusEnum.APPROVED);
+    createInventory("Inventário De Outro", employeeOther, department, InventoryStatusEnum.APPROVED);
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/reviewed")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.inventories.length()").value(2))
+        .andExpect(jsonPath("$.totalCount").value(2));
+  }
+
+  @Test
+  @DisplayName("Should not return inventories that are still processing")
+  void findManyReviewedInventoriesExcludesProcessing() throws Exception {
+
+    createInventory("Inventário Processando", employeeOther, department, InventoryStatusEnum.PROCESSING);
+    createInventory("Inventário Falhou", employeeOther, department, InventoryStatusEnum.PROCESSING_FAILED);
+    createInventory("Inventário Requisitado", employeeOther, department, InventoryStatusEnum.REQUESTED);
+    createInventory("Inventário Aprovado", employeeOther, department, InventoryStatusEnum.APPROVED);
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/reviewed")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.inventories.length()").value(1))
+        .andExpect(jsonPath("$.inventories[0].name").value("Inventário Aprovado"))
+        .andExpect(jsonPath("$.totalCount").value(1));
+  }
+
+  @Test
+  @DisplayName("Should apply take parameter")
+  void findManyReviewedInventoriesWithTake() throws Exception {
+
+    createInventory("Inventário A", employeeOther, department, InventoryStatusEnum.APPROVED);
+    createInventory("Inventário B", employeeOther, department, InventoryStatusEnum.APPROVED);
+    createInventory("Inventário C", employeeOther, department, InventoryStatusEnum.APPROVED);
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/reviewed")
+                .param("take", "2")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.inventories").isArray())
+        .andExpect(jsonPath("$.inventories.length()").value(2))
+        .andExpect(jsonPath("$.totalCount").value(3));
+  }
+
+  @Test
+  @DisplayName("Should apply skip and take parameters")
+  void findManyReviewedInventoriesWithSkipAndTake() throws Exception {
+
+    createInventory("Inventário A", employeeOther, department, InventoryStatusEnum.APPROVED);
+    createInventory("Inventário B", employeeOther, department, InventoryStatusEnum.APPROVED);
+    createInventory("Inventário C", employeeOther, department, InventoryStatusEnum.APPROVED);
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/reviewed")
+                .param("skip", "1")
+                .param("take", "1")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.inventories").isArray())
+        .andExpect(jsonPath("$.inventories.length()").value(1))
+        .andExpect(jsonPath("$.totalCount").value(3));
+  }
+
+  @Test
+  @DisplayName("Should return 200 and empty list when there are no reviewed inventories")
+  void findManyReviewedInventoriesEmpty() throws Exception {
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/reviewed")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.inventories").isEmpty())
+        .andExpect(jsonPath("$.totalCount").value(0));
+  }
+
+  @Test
+  @DisplayName("Should return 401 when JWT is not provided")
+  void findManyReviewedInventoriesWithoutAuthentication() throws Exception {
+
+    mockMvc.perform(
+            get("/api/inventories/reviewed")
+        )
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  @DisplayName("Should return 401 when JWT is invalid")
+  void findManyReviewedInventoriesWithInvalidToken() throws Exception {
+
+    mockMvc.perform(
+            get("/api/inventories/reviewed")
+                .header(
+                    "Authorization",
+                    "Bearer token-invalido"
+                )
+        )
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  @DisplayName("Should return 400 when take is less than minimum")
+  void findManyReviewedInventoriesWithInvalidTakeMin() throws Exception {
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/reviewed")
+                .param("take", "0")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  @DisplayName("Should return 400 when take is greater than maximum")
+  void findManyReviewedInventoriesWithInvalidTakeMax() throws Exception {
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/reviewed")
+                .param(
+                    "take",
+                    String.valueOf(
+                        com.aether.ms_inventory.shared.AetherConstants.MAX_TAKE + 1
+                    )
+                )
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  @DisplayName("Should return 400 when status is not a valid enum value")
+  void findManyReviewedInventoriesWithInvalidStatus() throws Exception {
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/reviewed")
+                .param("status", "STATUS_INEXISTENTE")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isBadRequest());
+  }
+
+  // ---------------------------------------------------------------------------
+  // GET /api/inventories/mine/{id}
+  // ---------------------------------------------------------------------------
+
+  @Test
+  @DisplayName("Should return 200 and the inventory details owned by the user")
+  void findMineInventoryByIdSuccess() throws Exception {
+
+    InventoryEntity inventory = createInventory("Inventário Meu");
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/mine/{id}", inventory.getId())
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(inventory.getId()))
+        .andExpect(jsonPath("$.name").value("Inventário Meu"))
+        .andExpect(jsonPath("$.status").value(InventoryStatusEnum.UNDER_REVIEW.name()));
+  }
+
+  @Test
+  @DisplayName("Should return 404 when the inventory does not exist")
+  void findMineInventoryByIdNotFound() throws Exception {
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/mine/{id}", Integer.MAX_VALUE)
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isNotFound());
+  }
+
+  @Test
+  @DisplayName("Should return 404 when the inventory belongs to another employee")
+  void findMineInventoryByIdFromAnotherEmployee() throws Exception {
+
+    InventoryEntity inventory = createInventory("Inventário De Outro", employeeOther);
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/mine/{id}", inventory.getId())
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isNotFound());
+  }
+
+  @Test
+  @DisplayName("Should return 401 when JWT is not provided")
+  void findMineInventoryByIdWithoutAuthentication() throws Exception {
+
+    InventoryEntity inventory = createInventory("Inventário Meu");
+
+    mockMvc.perform(
+            get("/api/inventories/mine/{id}", inventory.getId())
+        )
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  @DisplayName("Should return 401 when JWT is invalid")
+  void findMineInventoryByIdWithInvalidToken() throws Exception {
+
+    InventoryEntity inventory = createInventory("Inventário Meu");
+
+    mockMvc.perform(
+            get("/api/inventories/mine/{id}", inventory.getId())
+                .header("Authorization", "Bearer token-invalido")
+        )
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  @DisplayName("Should return 400 when the id is not a number")
+  void findMineInventoryByIdWithInvalidId() throws Exception {
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/mine/{id}", "abc")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  @DisplayName("Should return 400 when the id is less than the minimum value")
+  void findMineInventoryByIdWithIdBelowMinimum() throws Exception {
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/mine/{id}", 0)
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isBadRequest());
+  }
+
+  // ---------------------------------------------------------------------------
+  // GET /api/inventories/reviewed/{id}
+  // ---------------------------------------------------------------------------
+
+  @Test
+  @DisplayName("Should return 200 and the inventory details from the department")
+  void findReviewedInventoryByIdSuccess() throws Exception {
+
+    InventoryEntity inventory = createInventory(
+        "Inventário Aprovado",
+        employeeOther,
+        department,
+        InventoryStatusEnum.APPROVED
+    );
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/reviewed/{id}", inventory.getId())
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(inventory.getId()))
+        .andExpect(jsonPath("$.name").value("Inventário Aprovado"))
+        .andExpect(jsonPath("$.status").value(InventoryStatusEnum.APPROVED.name()));
+  }
+
+  @Test
+  @DisplayName("Should return 200 for an inventory owned by the requesting user")
+  void findReviewedInventoryByIdOwnedByRequester() throws Exception {
+
+    InventoryEntity inventory = createInventory(
+        "Inventário Meu Aprovado",
+        employeeActive,
+        department,
+        InventoryStatusEnum.APPROVED
+    );
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/reviewed/{id}", inventory.getId())
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(inventory.getId()));
+  }
+
+  @Test
+  @DisplayName("Should return 404 when the inventory does not exist")
+  void findReviewedInventoryByIdNotFound() throws Exception {
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/reviewed/{id}", Integer.MAX_VALUE)
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isNotFound());
+  }
+
+  @Test
+  @DisplayName("Should return 404 when the inventory belongs to another department")
+  void findReviewedInventoryByIdFromAnotherDepartment() throws Exception {
+
+    InventoryEntity inventory = createInventory(
+        "Inventário Outro Depto",
+        employeeOther,
+        otherDepartment,
+        InventoryStatusEnum.APPROVED
+    );
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/reviewed/{id}", inventory.getId())
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isNotFound());
+  }
+
+  @Test
+  @DisplayName("Should return 401 when JWT is not provided")
+  void findReviewedInventoryByIdWithoutAuthentication() throws Exception {
+
+    InventoryEntity inventory = createInventory("Inventário Pendente");
+
+    mockMvc.perform(
+            get("/api/inventories/reviewed/{id}", inventory.getId())
+        )
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  @DisplayName("Should return 401 when JWT is invalid")
+  void findReviewedInventoryByIdWithInvalidToken() throws Exception {
+
+    InventoryEntity inventory = createInventory("Inventário Pendente");
+
+    mockMvc.perform(
+            get("/api/inventories/reviewed/{id}", inventory.getId())
+                .header("Authorization", "Bearer token-invalido")
+        )
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  @DisplayName("Should return 400 when the id is not a number")
+  void findReviewedInventoryByIdWithInvalidId() throws Exception {
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/reviewed/{id}", "abc")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isBadRequest());
+  }
+
+  // ---------------------------------------------------------------------------
+  // GET /api/inventories/count
+  // ---------------------------------------------------------------------------
+
+  @Test
+  @DisplayName("Should return 200 with zero counts when there are no inventories")
+  void countInventoriesEmpty() throws Exception {
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/count")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.reviewedCount").value(0))
+        .andExpect(jsonPath("$.submittedCount").value(0));
+  }
+
+  @Test
+  @DisplayName("Should count input inventories submitted by the user")
+  void countInventoriesSent() throws Exception {
+
+    createInventory("Inventário A", employeeActive, InventoryStatusEnum.UNDER_REVIEW, InventoryTypeEnum.INPUT);
+    createInventory("Inventário B", employeeActive, InventoryStatusEnum.APPROVED, InventoryTypeEnum.INPUT);
+    createInventory("Inventário De Outro", employeeOther, InventoryStatusEnum.UNDER_REVIEW, InventoryTypeEnum.INPUT);
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/count")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.submittedCount").value(2));
+  }
+
+  @Test
+  @DisplayName("Should not count submitted inventories that are not of type INPUT")
+  void countInventoriesSentIgnoresNonInputType() throws Exception {
+
+    createInventory(
+        "Inventário Saída",
+        employeeActive,
+        InventoryStatusEnum.APPROVED,
+        InventoryTypeEnum.OUTPUT
+    );
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/count")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.submittedCount").value(0));
+  }
+
+  @Test
+  @DisplayName("Should count inventories reviewed by the user")
+  void countInventoriesReviewed() throws Exception {
+
+    createReviewedInventory("Inventário Aprovado", employeeOther, employeeActive, InventoryStatusEnum.APPROVED);
+    createReviewedInventory("Inventário Reprovado", employeeOther, employeeActive, InventoryStatusEnum.REJECTED);
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/count")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.reviewedCount").value(2));
+  }
+
+  @Test
+  @DisplayName("Should not count inventories reviewed by another employee")
+  void countInventoriesReviewedIgnoresOtherValidators() throws Exception {
+
+    createReviewedInventory("Inventário De Outro Validador", employeeActive, employeeOther, InventoryStatusEnum.APPROVED);
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/count")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.reviewedCount").value(0));
+  }
+
+  @Test
+  @DisplayName("Should not count reviewed inventories that are still processing")
+  void countInventoriesReviewedExcludesProcessing() throws Exception {
+
+    createReviewedInventory("Inventário Processando", employeeOther, employeeActive, InventoryStatusEnum.PROCESSING);
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/count")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.reviewedCount").value(0));
+  }
+
+  @Test
+  @DisplayName("Should return 401 when JWT is not provided")
+  void countInventoriesWithoutAuthentication() throws Exception {
+
+    mockMvc.perform(
+            get("/api/inventories/count")
+        )
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  @DisplayName("Should return 401 when JWT is invalid")
+  void countInventoriesWithInvalidToken() throws Exception {
+
+    mockMvc.perform(
+            get("/api/inventories/count")
+                .header("Authorization", "Bearer token-invalido")
+        )
+        .andExpect(status().isUnauthorized());
+  }
+
+  // ---------------------------------------------------------------------------
+  // GET /api/inventories/mine/last
+  // ---------------------------------------------------------------------------
+
+  @Test
+  @DisplayName("Should return 200 and the owner's last input inventory")
+  void findMyLastInventorySuccess() throws Exception {
+
+    InventoryEntity inventory = createInventory("Inventário Meu", employeeActive);
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/mine/last")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(inventory.getId()))
+        .andExpect(jsonPath("$.name").value("Inventário Meu"))
+        .andExpect(jsonPath("$.author.name").value("Teste"))
+        .andExpect(jsonPath("$.status").value(InventoryStatusEnum.UNDER_REVIEW.name()))
+        .andExpect(jsonPath("$.type").value(InventoryTypeEnum.INPUT.name()));
+  }
+
+  @Test
+  @DisplayName("Should return the most recently created input inventory")
+  void findMyLastInventoryMostRecent() throws Exception {
+
+    createInventory("Inventário Antigo", employeeActive);
+    Thread.sleep(10);
+    InventoryEntity recent = createInventory("Inventário Recente", employeeActive);
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/mine/last")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(recent.getId()))
+        .andExpect(jsonPath("$.name").value("Inventário Recente"));
+  }
+
+  @Test
+  @DisplayName("Should not return inventories owned by another employee")
+  void findMyLastInventoryIgnoresOtherEmployees() throws Exception {
+
+    createInventory("Inventário De Outro", employeeOther);
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/mine/last")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isNotFound());
+  }
+
+  @Test
+  @DisplayName("Should not return inventories that are not of type INPUT")
+  void findMyLastInventoryIgnoresNonInputType() throws Exception {
+
+    createInventory(
+        "Inventário Saída",
+        employeeActive,
+        InventoryStatusEnum.APPROVED,
+        InventoryTypeEnum.OUTPUT
+    );
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/mine/last")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isNotFound());
+  }
+
+  @Test
+  @DisplayName("Should return 404 when the owner has no inventories")
+  void findMyLastInventoryNotFound() throws Exception {
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/mine/last")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isNotFound());
+  }
+
+  @Test
+  @DisplayName("Should return 401 when JWT is not provided")
+  void findMyLastInventoryWithoutAuthentication() throws Exception {
+
+    mockMvc.perform(
+            get("/api/inventories/mine/last")
+        )
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  @DisplayName("Should return 401 when JWT is invalid")
+  void findMyLastInventoryWithInvalidToken() throws Exception {
+
+    mockMvc.perform(
+            get("/api/inventories/mine/last")
+                .header("Authorization", "Bearer token-invalido")
+        )
+        .andExpect(status().isUnauthorized());
+  }
+
+  // ---------------------------------------------------------------------------
+  // GET /api/inventories/reviewed/last
+  // ---------------------------------------------------------------------------
+
+  @Test
+  @DisplayName("Should return 200 and the validator's last reviewed inventory")
+  void findReviewedLastInventorySuccess() throws Exception {
+
+    InventoryEntity inventory = createReviewedInventory(
+        "Inventário Aprovado",
+        employeeOther,
+        employeeActive,
+        InventoryStatusEnum.APPROVED
+    );
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/reviewed/last")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(inventory.getId()))
+        .andExpect(jsonPath("$.name").value("Inventário Aprovado"))
+        .andExpect(jsonPath("$.author.name").value("Outro Teste"))
+        .andExpect(jsonPath("$.status").value(InventoryStatusEnum.APPROVED.name()));
+  }
+
+  @Test
+  @DisplayName("Should return the most recently reviewed inventory")
+  void findReviewedLastInventoryMostRecent() throws Exception {
+
+    createReviewedInventory(
+        "Inventário Antigo",
+        employeeOther,
+        employeeActive,
+        InventoryStatusEnum.APPROVED
+    );
+    Thread.sleep(10);
+    InventoryEntity recent = createReviewedInventory(
+        "Inventário Recente",
+        employeeOther,
+        employeeActive,
+        InventoryStatusEnum.REJECTED
+    );
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/reviewed/last")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(recent.getId()))
+        .andExpect(jsonPath("$.name").value("Inventário Recente"));
+  }
+
+  @Test
+  @DisplayName("Should not return inventories reviewed by another employee")
+  void findReviewedLastInventoryIgnoresOtherValidators() throws Exception {
+
+    createReviewedInventory(
+        "Inventário De Outro Validador",
+        employeeActive,
+        employeeOther,
+        InventoryStatusEnum.APPROVED
+    );
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/reviewed/last")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isNotFound());
+  }
+
+  @Test
+  @DisplayName("Should not return inventories that are still processing")
+  void findReviewedLastInventoryExcludesProcessing() throws Exception {
+
+    createReviewedInventory(
+        "Inventário Processando",
+        employeeOther,
+        employeeActive,
+        InventoryStatusEnum.PROCESSING
+    );
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/reviewed/last")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isNotFound());
+  }
+
+  @Test
+  @DisplayName("Should return 404 when the validator has no reviewed inventories")
+  void findReviewedLastInventoryNotFound() throws Exception {
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/reviewed/last")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isNotFound());
+  }
+
+  @Test
+  @DisplayName("Should return 401 when JWT is not provided")
+  void findReviewedLastInventoryWithoutAuthentication() throws Exception {
+
+    mockMvc.perform(
+            get("/api/inventories/reviewed/last")
+        )
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  @DisplayName("Should return 401 when JWT is invalid")
+  void findReviewedLastInventoryWithInvalidToken() throws Exception {
+
+    mockMvc.perform(
+            get("/api/inventories/reviewed/last")
+                .header("Authorization", "Bearer token-invalido")
+        )
+        .andExpect(status().isUnauthorized());
   }
 }

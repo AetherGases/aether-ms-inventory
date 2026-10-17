@@ -21,4 +21,12 @@ public interface InventoryRepository extends JpaRepository<InventoryEntity, Inte
   Optional<InventoryEntity> findByIdForUpdate(@Param("id") Integer id);
   
   Optional<InventoryEntity> findByIdAndDepartmentIdAndStatus(Integer id, Integer departmentId, InventoryStatusEnum status);
+  Optional<InventoryEntity> findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
+      Integer id,
+      Integer departmentId,
+      InventoryStatusEnum status,
+      Integer ownerEmployeeId
+  );
+  Optional<InventoryEntity> findByIdAndDepartmentId(Integer id, Integer departmentId);
+  Optional<InventoryEntity> findByIdAndOwnerEmployeeId(Integer id, Integer ownerEmployeeId);
 }
