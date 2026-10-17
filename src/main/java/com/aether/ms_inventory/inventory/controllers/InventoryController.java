@@ -1,6 +1,7 @@
 package com.aether.ms_inventory.inventory.controllers;
 
 import com.aether.ms_inventory.inventory.dto.input.ApproveInventoryInputDTO;
+import com.aether.ms_inventory.inventory.dto.input.FindLastInventoryInputDTO;
 import com.aether.ms_inventory.inventory.dto.input.RejectInventoryInputDTO;
 import com.aether.ms_inventory.inventory.dto.output.*;
 import com.aether.ms_inventory.inventory.dto.query_params.FindManyPendingInventoriesQueryParamsDTO;
@@ -75,6 +76,35 @@ public class InventoryController implements InventoryControllerDocs {
   }
 
   @Override
+  @GetMapping("/mine/last")
+  public ResponseEntity<LastInventoryOutputDTO> findMyLastInventory(
+      Authentication authentication
+  ){
+    CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
+
+    return new ResponseEntity<>(
+        this.inventoryService.findMyLastInventory(
+            new FindLastInventoryInputDTO(user.getId())
+        ),
+        HttpStatus.OK
+    );
+  }
+
+  @Override
+  @GetMapping("/reviewed/last")
+  public ResponseEntity<LastInventoryOutputDTO> findReviewedLastInventory(
+      Authentication authentication
+  ){
+    CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
+
+    return new ResponseEntity<>(
+        this.inventoryService.findReviewedLastInventory(
+            new FindLastInventoryInputDTO(user.getId())
+        ),
+        HttpStatus.OK
+    );
+  }
+
   @GetMapping("/pending")
   public ResponseEntity<FindManyPendingInventoriesOutputDTO> findManyPendingInventories(
       @ModelAttribute

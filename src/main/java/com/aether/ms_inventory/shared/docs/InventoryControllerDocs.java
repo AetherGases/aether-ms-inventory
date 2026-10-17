@@ -67,6 +67,50 @@ public interface InventoryControllerDocs {
   );
 
   @Operation(
+      summary = "Retorna o último relatório do usuário logado.",
+      description = "Retorna o último relatório de entrada gerado ou enviado pelo usuário logado.",
+      tags = {"Inventories"},
+      responses = {
+          @ApiResponse(description = "Success", responseCode = "200", content =
+          @Content(
+              mediaType = MediaType.APPLICATION_JSON_VALUE,
+              schema = @Schema(implementation = LastInventoryOutputDTO.class)
+          )
+          ),
+          @ApiResponse(description = "Bad Request", responseCode = "400", content = @Content),
+          @ApiResponse(description = "Unhautorized", responseCode = "401", content = @Content),
+          @ApiResponse(description = "Forbidden", responseCode = "403", content = @Content),
+          @ApiResponse(description = "Not Found", responseCode = "404", content = @Content),
+          @ApiResponse(description = "Internal Server Error", responseCode = "500", content = @Content)
+      }
+  )
+  ResponseEntity<LastInventoryOutputDTO> findMyLastInventory(
+      Authentication authentication
+  );
+
+  @Operation(
+      summary = "Retorna o último relatório revisado.",
+      description = "Retorna o último relatório revisado no departamento do usuário logado.",
+      tags = {"Inventories"},
+      responses = {
+          @ApiResponse(description = "Success", responseCode = "200", content =
+          @Content(
+              mediaType = MediaType.APPLICATION_JSON_VALUE,
+              schema = @Schema(implementation = LastInventoryOutputDTO.class)
+          )
+          ),
+          @ApiResponse(description = "Bad Request", responseCode = "400", content = @Content),
+          @ApiResponse(description = "Unhautorized", responseCode = "401", content = @Content),
+          @ApiResponse(description = "Forbidden", responseCode = "403", content = @Content),
+          @ApiResponse(description = "Not Found", responseCode = "404", content = @Content),
+          @ApiResponse(description = "Internal Server Error", responseCode = "500", content = @Content)
+      }
+  )
+  ResponseEntity<LastInventoryOutputDTO> findReviewedLastInventory(
+      Authentication authentication
+  );
+
+  @Operation(
       summary = "Retorna os relatórios a serem validados.",
       description = "Retorna os relatórios a serem validados pelo usuário logado.",
       tags = {"Inventories"},
