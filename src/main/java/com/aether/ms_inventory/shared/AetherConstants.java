@@ -120,6 +120,9 @@ public final class AetherConstants {
   public static final int MAX_INVENTORY_CONSOLIDATION_APPROACH_LENGTH = 100;
   public static final int MIN_INVENTORY_CONSOLIDATION_APPROACH_LENGTH = 3;
 
+  public static final int MAX_INVENTORY_STATUS_MESSAGE_LENGTH = 100;
+  public static final int MIN_INVENTORY_STATUS_MESSAGE_LENGTH = 2;
+
 
   // Emission
 

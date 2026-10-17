@@ -1,5 +1,6 @@
 package com.aether.ms_inventory.shared.persistence.postgres.repositories;
 
+import com.aether.ms_inventory.shared.enums.InventoryStatusEnum;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.InventoryEntity;
 import com.aether.ms_inventory.shared.persistence.postgres.repositories.custom.interfaces.InventoryRepositoryCustom;
 import jakarta.persistence.LockModeType;
@@ -18,4 +19,6 @@ public interface InventoryRepository extends JpaRepository<InventoryEntity, Inte
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   @Query("SELECT i FROM InventoryEntity i WHERE i.id = :id")
   Optional<InventoryEntity> findByIdForUpdate(@Param("id") Integer id);
+  
+  Optional<InventoryEntity> findByIdAndDepartmentIdAndStatus(Integer id, Integer departmentId, InventoryStatusEnum status);
 }
