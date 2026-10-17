@@ -26,6 +26,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -1230,6 +1232,46 @@ public class InventoryServiceTests {
   }
 
   // ---------------------------------------------------------------------------
+  // countInventories
+  // ---------------------------------------------------------------------------
+
+  @Test
+  @DisplayName("Should return the reviewed and submitted inventory counts")
+  void countInventories() {
+    Integer userId = 1;
+
+    CountInventoriesInputDTO input = new CountInventoriesInputDTO(userId);
+
+    when(inventoryRepository.count(any(Specification.class)))
+        .thenReturn(3L)
+        .thenReturn(8L);
+
+    CountInventoriesOutputDTO output = inventoryService.countInventories(input);
+
+    assertEquals(3L, output.reviewedCount());
+    assertEquals(8L, output.submittedCount());
+
+    verify(inventoryRepository, times(2)).count(any(Specification.class));
+    verifyNoInteractions(getUserInfosService);
+  }
+
+  @Test
+  @DisplayName("Should return zero counts when there are no inventories")
+  void countInventoriesEmpty() {
+    Integer userId = 1;
+
+    CountInventoriesInputDTO input = new CountInventoriesInputDTO(userId);
+
+    when(inventoryRepository.count(any(Specification.class)))
+        .thenReturn(0L);
+
+    CountInventoriesOutputDTO output = inventoryService.countInventories(input);
+
+    assertEquals(0L, output.reviewedCount());
+    assertEquals(0L, output.submittedCount());
+  }
+
+  // ---------------------------------------------------------------------------
   // findMineInventoryById
   // ---------------------------------------------------------------------------
 
@@ -1378,5 +1420,209 @@ public class InventoryServiceTests {
     );
 
     verifyNoInteractions(inventoryRepository);
+  }
+
+  // ---------------------------------------------------------------------------
+  // findMyLastInventory
+  // ---------------------------------------------------------------------------
+
+  @Test
+  @DisplayName("Should return the owner's last input inventory")
+  void findMyLastInventory() {
+    Integer userId = 1;
+
+    FindLastInventoryInputDTO input = new FindLastInventoryInputDTO(userId);
+
+    EmployeeEntity employee = mock(EmployeeEntity.class);
+    when(employee.getName()).thenReturn("Autor Teste");
+    when(employee.getStorageFile()).thenReturn(null);
+
+    StorageFileEntity storageFile = new StorageFileEntity(
+        "arquivo.xlsx",
+        "/uploads/arquivo.xlsx"
+    );
+
+    InventoryEntity inventory = new InventoryEntity(
+        "Inventário Teste",
+        InventoryTypeEnum.INPUT,
+        employee,
+        storageFile
+    );
+    inventory.setId(5);
+    inventory.setStatus(InventoryStatusEnum.UNDER_REVIEW);
+    inventory.setInventoryPeriodStart(LocalDate.of(2026, 1, 1));
+    inventory.setInventoryPeriodEnd(LocalDate.of(2026, 1, 31));
+    inventory.setCreatedAt(LocalDateTime.of(2026, 1, 1, 10, 0));
+    inventory.setUpdatedAt(LocalDateTime.of(2026, 1, 2, 10, 0));
+
+    when(inventoryRepository.findWithPagination(
+        any(Specification.class),
+        eq(0),
+        eq(1)
+    )).thenReturn(List.of(inventory));
+
+    LastInventoryOutputDTO output = inventoryService.findMyLastInventory(input);
+
+    assertEquals(5, output.id());
+    assertEquals("Inventário Teste", output.name());
+    assertEquals("Autor Teste", output.author().name());
+    assertNull(output.author().imageUrl());
+    assertEquals(LocalDate.of(2026, 1, 1), output.period().start());
+    assertEquals(LocalDate.of(2026, 1, 31), output.period().end());
+    assertEquals(InventoryStatusEnum.UNDER_REVIEW, output.status());
+    assertEquals(InventoryTypeEnum.INPUT, output.type());
+    assertEquals(LocalDateTime.of(2026, 1, 1, 10, 0), output.createdAt());
+    assertEquals(LocalDateTime.of(2026, 1, 2, 10, 0), output.updatedAt());
+
+    verify(inventoryRepository).findWithPagination(
+        any(Specification.class),
+        eq(0),
+        eq(1)
+    );
+
+    verifyNoInteractions(getUserInfosService);
+  }
+
+  @Test
+  @DisplayName("Should throw NotFoundException when the owner has no input inventories")
+  void findMyLastInventoryNotFound() {
+    Integer userId = 1;
+
+    FindLastInventoryInputDTO input = new FindLastInventoryInputDTO(userId);
+
+    when(inventoryRepository.findWithPagination(
+        any(Specification.class),
+        eq(0),
+        eq(1)
+    )).thenReturn(List.of());
+
+    NotFoundException exception = assertThrows(
+        NotFoundException.class,
+        () -> inventoryService.findMyLastInventory(input)
+    );
+
+    assertEquals("exception.last-mine-inventory.not-found", exception.getMessage());
+  }
+
+  @Test
+  @DisplayName("Should request only the single most recent inventory")
+  void findMyLastInventoryRequestsOnlyOneResult() {
+    Integer userId = 1;
+
+    FindLastInventoryInputDTO input = new FindLastInventoryInputDTO(userId);
+
+    when(inventoryRepository.findWithPagination(
+        any(Specification.class),
+        any(),
+        any()
+    )).thenReturn(List.of());
+
+    assertThrows(
+        NotFoundException.class,
+        () -> inventoryService.findMyLastInventory(input)
+    );
+
+    verify(inventoryRepository).findWithPagination(
+        any(Specification.class),
+        eq(0),
+        eq(1)
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // findReviewedLastInventory
+  // ---------------------------------------------------------------------------
+
+  @Test
+  @DisplayName("Should return the validator's last reviewed inventory")
+  void findReviewedLastInventory() {
+    Integer userId = 1;
+
+    FindLastInventoryInputDTO input = new FindLastInventoryInputDTO(userId);
+
+    EmployeeEntity employee = mock(EmployeeEntity.class);
+    when(employee.getName()).thenReturn("Autor Teste");
+    when(employee.getStorageFile()).thenReturn(null);
+
+    StorageFileEntity storageFile = new StorageFileEntity(
+        "arquivo.xlsx",
+        "/uploads/arquivo.xlsx"
+    );
+
+    InventoryEntity inventory = new InventoryEntity(
+        "Inventário Revisado",
+        InventoryTypeEnum.INPUT,
+        employee,
+        storageFile
+    );
+    inventory.setId(7);
+    inventory.setStatus(InventoryStatusEnum.APPROVED);
+
+    when(inventoryRepository.findWithPagination(
+        any(Specification.class),
+        eq(0),
+        eq(1)
+    )).thenReturn(List.of(inventory));
+
+    LastInventoryOutputDTO output = inventoryService.findReviewedLastInventory(input);
+
+    assertEquals(7, output.id());
+    assertEquals("Inventário Revisado", output.name());
+    assertEquals("Autor Teste", output.author().name());
+    assertEquals(InventoryStatusEnum.APPROVED, output.status());
+
+    verify(inventoryRepository).findWithPagination(
+        any(Specification.class),
+        eq(0),
+        eq(1)
+    );
+
+    verifyNoInteractions(getUserInfosService);
+  }
+
+  @Test
+  @DisplayName("Should throw NotFoundException when the validator has no reviewed inventories")
+  void findReviewedLastInventoryNotFound() {
+    Integer userId = 1;
+
+    FindLastInventoryInputDTO input = new FindLastInventoryInputDTO(userId);
+
+    when(inventoryRepository.findWithPagination(
+        any(Specification.class),
+        eq(0),
+        eq(1)
+    )).thenReturn(List.of());
+
+    NotFoundException exception = assertThrows(
+        NotFoundException.class,
+        () -> inventoryService.findReviewedLastInventory(input)
+    );
+
+    assertEquals("exception.last-reviewed-inventory.not-found", exception.getMessage());
+  }
+
+  @Test
+  @DisplayName("Should request only the single most recent reviewed inventory")
+  void findReviewedLastInventoryRequestsOnlyOneResult() {
+    Integer userId = 1;
+
+    FindLastInventoryInputDTO input = new FindLastInventoryInputDTO(userId);
+
+    when(inventoryRepository.findWithPagination(
+        any(Specification.class),
+        any(),
+        any()
+    )).thenReturn(List.of());
+
+    assertThrows(
+        NotFoundException.class,
+        () -> inventoryService.findReviewedLastInventory(input)
+    );
+
+    verify(inventoryRepository).findWithPagination(
+        any(Specification.class),
+        eq(0),
+        eq(1)
+    );
   }
 }

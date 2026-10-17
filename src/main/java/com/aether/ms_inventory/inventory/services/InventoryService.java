@@ -170,6 +170,56 @@ public class InventoryService {
   }
 
   @Transactional(readOnly = true)
+  public LastInventoryOutputDTO findMyLastInventory(
+      FindLastInventoryInputDTO input
+  ){
+    Specification<InventoryEntity> spec = Specification
+        .where(InventorySpecification.withOwnerEmployeeId(input.userId()))
+        .and(InventorySpecification.withType(InventoryTypeEnum.INPUT));
+
+    InventoryEntity inventory = inventoryRepository.findWithPagination(spec, 0, 1)
+        .stream()
+        .findFirst()
+        .orElseThrow(() -> new NotFoundException("exception.last-mine-inventory.not-found"));
+
+    return InventoryMapper.convertLastInventoryEntityToOutput(inventory);
+  }
+
+  @Transactional(readOnly = true)
+  public LastInventoryOutputDTO findReviewedLastInventory(
+      FindLastInventoryInputDTO input
+  ){
+    Specification<InventoryEntity> spec = Specification
+        .where(InventorySpecification.withValidatorEmployeeId(input.userId()))
+        .and(InventorySpecification.withNotProcessing());
+
+    InventoryEntity inventory = inventoryRepository.findWithPagination(spec, 0, 1)
+        .stream()
+        .findFirst()
+        .orElseThrow(() -> new NotFoundException("exception.last-reviewed-inventory.not-found"));
+
+    return InventoryMapper.convertLastInventoryEntityToOutput(inventory);
+  }
+
+  @Transactional(readOnly = true)
+  public CountInventoriesOutputDTO countInventories(
+      CountInventoriesInputDTO input
+  ){
+    Specification<InventoryEntity> reviewedSpec = Specification
+        .where(InventorySpecification.withValidatorEmployeeId(input.userId()))
+        .and(InventorySpecification.withNotProcessing());
+
+    Specification<InventoryEntity> submittedSpec = Specification
+        .where(InventorySpecification.withOwnerEmployeeId(input.userId()))
+        .and(InventorySpecification.withType(InventoryTypeEnum.INPUT));
+
+    long reviewedCount = inventoryRepository.count(reviewedSpec);
+    long submittedCount = inventoryRepository.count(submittedSpec);
+
+    return new CountInventoriesOutputDTO(reviewedCount, submittedCount);
+  }
+
+  @Transactional(readOnly = true)
   public FindInventoryByIdOutputDTO findMineInventoryById(
       FindInventoryByIdInputDTO input
   ){

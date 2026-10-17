@@ -182,6 +182,27 @@ public class InventoryMapper {
     );
   }
 
+  public static LastInventoryOutputDTO convertLastInventoryEntityToOutput(InventoryEntity inventory){
+    EmployeeEntity author = inventory.getOwnerEmployee();
+
+    return new LastInventoryOutputDTO(
+        inventory.getId(),
+        NormalizeOutput.name(inventory.getName()),
+        new LastInventoryOutputDTO.Author(
+            NormalizeOutput.name(author.getName()),
+            author.getStorageFile() != null ? NormalizeOutput.url(author.getStorageFile().getPath()) : null
+        ),
+        new LastInventoryOutputDTO.Period(
+            inventory.getInventoryPeriodStart(),
+            inventory.getInventoryPeriodEnd()
+        ),
+        inventory.getStatus(),
+        inventory.getType(),
+        inventory.getCreatedAt(),
+        inventory.getUpdatedAt()
+    );
+  }
+
   private static FindInventoryByIdOutputDTO.Employee convertEmployeeToOutput(EmployeeEntity employee){
     if (employee == null) return null;
 
