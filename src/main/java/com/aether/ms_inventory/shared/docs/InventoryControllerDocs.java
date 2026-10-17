@@ -111,6 +111,26 @@ public interface InventoryControllerDocs {
   );
 
   @Operation(
+      summary = "Retorna a contagem de relatórios do usuário logado.",
+      description = "Retorna a quantidade de relatórios revisados e enviados pelo usuário logado.",
+      tags = {"Inventories"},
+      responses = {
+          @ApiResponse(description = "Success", responseCode = "200", content =
+          @Content(
+              mediaType = MediaType.APPLICATION_JSON_VALUE,
+              schema = @Schema(implementation = CountInventoriesOutputDTO.class)
+          )
+          ),
+          @ApiResponse(description = "Unhautorized", responseCode = "401", content = @Content),
+          @ApiResponse(description = "Forbidden", responseCode = "403", content = @Content),
+          @ApiResponse(description = "Internal Server Error", responseCode = "500", content = @Content)
+      }
+  )
+  ResponseEntity<CountInventoriesOutputDTO> countInventories(
+      Authentication authentication
+  );
+
+  @Operation(
       summary = "Retorna os relatórios a serem validados.",
       description = "Retorna os relatórios a serem validados pelo usuário logado.",
       tags = {"Inventories"},

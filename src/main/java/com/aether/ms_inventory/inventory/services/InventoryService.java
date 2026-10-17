@@ -202,6 +202,24 @@ public class InventoryService {
   }
 
   @Transactional(readOnly = true)
+  public CountInventoriesOutputDTO countInventories(
+      CountInventoriesInputDTO input
+  ){
+    Specification<InventoryEntity> reviewedSpec = Specification
+        .where(InventorySpecification.withValidatorEmployeeId(input.userId()))
+        .and(InventorySpecification.withNotProcessing());
+
+    Specification<InventoryEntity> submittedSpec = Specification
+        .where(InventorySpecification.withOwnerEmployeeId(input.userId()))
+        .and(InventorySpecification.withType(InventoryTypeEnum.INPUT));
+
+    long reviewedCount = inventoryRepository.count(reviewedSpec);
+    long submittedCount = inventoryRepository.count(submittedSpec);
+
+    return new CountInventoriesOutputDTO(reviewedCount, submittedCount);
+  }
+
+  @Transactional(readOnly = true)
   public FindInventoryByIdOutputDTO findMineInventoryById(
       FindInventoryByIdInputDTO input
   ){

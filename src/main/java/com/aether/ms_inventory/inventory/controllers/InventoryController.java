@@ -1,6 +1,7 @@
 package com.aether.ms_inventory.inventory.controllers;
 
 import com.aether.ms_inventory.inventory.dto.input.ApproveInventoryInputDTO;
+import com.aether.ms_inventory.inventory.dto.input.CountInventoriesInputDTO;
 import com.aether.ms_inventory.inventory.dto.input.FindLastInventoryInputDTO;
 import com.aether.ms_inventory.inventory.dto.input.RejectInventoryInputDTO;
 import com.aether.ms_inventory.inventory.dto.output.*;
@@ -100,6 +101,21 @@ public class InventoryController implements InventoryControllerDocs {
     return new ResponseEntity<>(
         this.inventoryService.findReviewedLastInventory(
             new FindLastInventoryInputDTO(user.getId())
+        ),
+        HttpStatus.OK
+    );
+  }
+
+  @Override
+  @GetMapping("/count")
+  public ResponseEntity<CountInventoriesOutputDTO> countInventories(
+      Authentication authentication
+  ){
+    CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
+
+    return new ResponseEntity<>(
+        this.inventoryService.countInventories(
+            new CountInventoriesInputDTO(user.getId())
         ),
         HttpStatus.OK
     );

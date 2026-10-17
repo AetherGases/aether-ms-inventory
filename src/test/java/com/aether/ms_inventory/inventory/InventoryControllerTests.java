@@ -1846,6 +1846,134 @@ class InventoryControllerTests {
   }
 
   // ---------------------------------------------------------------------------
+  // GET /api/inventories/count
+  // ---------------------------------------------------------------------------
+
+  @Test
+  @DisplayName("Should return 200 with zero counts when there are no inventories")
+  void countInventoriesEmpty() throws Exception {
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/count")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.reviewedCount").value(0))
+        .andExpect(jsonPath("$.submittedCount").value(0));
+  }
+
+  @Test
+  @DisplayName("Should count input inventories submitted by the user")
+  void countInventoriesSent() throws Exception {
+
+    createInventory("Inventário A", employeeActive, InventoryStatusEnum.UNDER_REVIEW, InventoryTypeEnum.INPUT);
+    createInventory("Inventário B", employeeActive, InventoryStatusEnum.APPROVED, InventoryTypeEnum.INPUT);
+    createInventory("Inventário De Outro", employeeOther, InventoryStatusEnum.UNDER_REVIEW, InventoryTypeEnum.INPUT);
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/count")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.submittedCount").value(2));
+  }
+
+  @Test
+  @DisplayName("Should not count submitted inventories that are not of type INPUT")
+  void countInventoriesSentIgnoresNonInputType() throws Exception {
+
+    createInventory(
+        "Inventário Saída",
+        employeeActive,
+        InventoryStatusEnum.APPROVED,
+        InventoryTypeEnum.OUTPUT
+    );
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/count")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.submittedCount").value(0));
+  }
+
+  @Test
+  @DisplayName("Should count inventories reviewed by the user")
+  void countInventoriesReviewed() throws Exception {
+
+    createReviewedInventory("Inventário Aprovado", employeeOther, employeeActive, InventoryStatusEnum.APPROVED);
+    createReviewedInventory("Inventário Reprovado", employeeOther, employeeActive, InventoryStatusEnum.REJECTED);
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/count")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.reviewedCount").value(2));
+  }
+
+  @Test
+  @DisplayName("Should not count inventories reviewed by another employee")
+  void countInventoriesReviewedIgnoresOtherValidators() throws Exception {
+
+    createReviewedInventory("Inventário De Outro Validador", employeeActive, employeeOther, InventoryStatusEnum.APPROVED);
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/count")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.reviewedCount").value(0));
+  }
+
+  @Test
+  @DisplayName("Should not count reviewed inventories that are still processing")
+  void countInventoriesReviewedExcludesProcessing() throws Exception {
+
+    createReviewedInventory("Inventário Processando", employeeOther, employeeActive, InventoryStatusEnum.PROCESSING);
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/count")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.reviewedCount").value(0));
+  }
+
+  @Test
+  @DisplayName("Should return 401 when JWT is not provided")
+  void countInventoriesWithoutAuthentication() throws Exception {
+
+    mockMvc.perform(
+            get("/api/inventories/count")
+        )
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  @DisplayName("Should return 401 when JWT is invalid")
+  void countInventoriesWithInvalidToken() throws Exception {
+
+    mockMvc.perform(
+            get("/api/inventories/count")
+                .header("Authorization", "Bearer token-invalido")
+        )
+        .andExpect(status().isUnauthorized());
+  }
+
+  // ---------------------------------------------------------------------------
   // GET /api/inventories/mine/last
   // ---------------------------------------------------------------------------
 

@@ -95,7 +95,7 @@ O projeto possui configurações separadas para cada ambiente:
 - `staging`
 - `prod`
 
-O perfil é definido pela variável e nesse caso representa a de desenvolvimento:
+O perfil é definido pela variável e nesse caso represubmitteda a de desenvolvimento:
 
 ```properties
 SPRING_PROFILES_ACTIVE=dev

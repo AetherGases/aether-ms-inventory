@@ -1232,6 +1232,46 @@ public class InventoryServiceTests {
   }
 
   // ---------------------------------------------------------------------------
+  // countInventories
+  // ---------------------------------------------------------------------------
+
+  @Test
+  @DisplayName("Should return the reviewed and submitted inventory counts")
+  void countInventories() {
+    Integer userId = 1;
+
+    CountInventoriesInputDTO input = new CountInventoriesInputDTO(userId);
+
+    when(inventoryRepository.count(any(Specification.class)))
+        .thenReturn(3L)
+        .thenReturn(8L);
+
+    CountInventoriesOutputDTO output = inventoryService.countInventories(input);
+
+    assertEquals(3L, output.reviewedCount());
+    assertEquals(8L, output.submittedCount());
+
+    verify(inventoryRepository, times(2)).count(any(Specification.class));
+    verifyNoInteractions(getUserInfosService);
+  }
+
+  @Test
+  @DisplayName("Should return zero counts when there are no inventories")
+  void countInventoriesEmpty() {
+    Integer userId = 1;
+
+    CountInventoriesInputDTO input = new CountInventoriesInputDTO(userId);
+
+    when(inventoryRepository.count(any(Specification.class)))
+        .thenReturn(0L);
+
+    CountInventoriesOutputDTO output = inventoryService.countInventories(input);
+
+    assertEquals(0L, output.reviewedCount());
+    assertEquals(0L, output.submittedCount());
+  }
+
+  // ---------------------------------------------------------------------------
   // findMineInventoryById
   // ---------------------------------------------------------------------------
 
