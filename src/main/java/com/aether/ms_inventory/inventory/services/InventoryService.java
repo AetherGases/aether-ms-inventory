@@ -49,6 +49,8 @@ public class InventoryService {
         storageFile
     );
 
+    inventory.setConsolidationApproach(input.consolidationApproach());
+
     inventoryRepository.save(inventory);
 
     InputInventoryDocument inputInventory = new InputInventoryDocument(

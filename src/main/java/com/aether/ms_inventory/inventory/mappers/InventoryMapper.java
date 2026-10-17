@@ -30,6 +30,7 @@ public class InventoryMapper {
     return new RegisterInventoryInputDTO(
         userId,
         NormalizeInput.name(request.name()),
+        NormalizeInput.name(request.consolidationApproach()),
         NormalizeInput.name(request.fileName()),
         NormalizeInput.url(request.path())
     );
