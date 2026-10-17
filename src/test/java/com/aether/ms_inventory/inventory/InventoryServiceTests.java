@@ -271,6 +271,7 @@ public class InventoryServiceTests {
         new RegisterInventoryInputDTO(
             userId,
             "Inventário Teste",
+            "Participação acionária",
             "arquivo.csv",
             "/uploads/arquivo.csv"
         );
@@ -309,6 +310,7 @@ public class InventoryServiceTests {
 
     InventoryEntity savedInventory = inventoryCaptor.getValue();
     assertEquals("Inventário Teste", savedInventory.getName());
+    assertEquals("Participação acionária", savedInventory.getConsolidationApproach());
     assertEquals(InventoryTypeEnum.INPUT, savedInventory.getType());
     assertSame(employee, savedInventory.getOwnerEmployee());
 
@@ -329,6 +331,7 @@ public class InventoryServiceTests {
         new RegisterInventoryInputDTO(
             userId,
             "Inventário Teste",
+            "Participação acionária",
             "arquivo.csv",
             "/uploads/arquivo.csv"
         );
@@ -357,6 +360,7 @@ public class InventoryServiceTests {
         new RegisterInventoryInputDTO(
             userId,
             "Inventário Teste",
+            "Participação acionária",
             "arquivo.csv",
             "/uploads/arquivo.csv"
         );
@@ -384,6 +388,7 @@ public class InventoryServiceTests {
         new RegisterInventoryInputDTO(
             userId,
             "Inventário Teste",
+            "Participação acionária",
             "arquivo.csv",
             "/uploads/arquivo.csv"
         );
@@ -412,6 +417,7 @@ public class InventoryServiceTests {
         new RegisterInventoryInputDTO(
             userId,
             "Inventário Teste",
+            "Participação acionária",
             "arquivo.csv",
             "/uploads/arquivo.csv"
         );
@@ -670,10 +676,11 @@ public class InventoryServiceTests {
     when(getUserInfosService.getDepartment(validatorId))
         .thenReturn(department);
 
-    when(inventoryRepository.findByIdAndDepartmentIdAndStatus(
+    when(inventoryRepository.findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
         inventoryId,
         departmentId,
-        InventoryStatusEnum.UNDER_REVIEW
+        InventoryStatusEnum.UNDER_REVIEW,
+        validatorId
     )).thenReturn(Optional.of(inventory));
 
     RejectInventoryOutputDTO output = inventoryService.rejectInventory(input);
@@ -691,10 +698,11 @@ public class InventoryServiceTests {
     assertNotNull(output);
 
     verify(getUserInfosService).getDepartment(validatorId);
-    verify(inventoryRepository).findByIdAndDepartmentIdAndStatus(
+    verify(inventoryRepository).findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
         inventoryId,
         departmentId,
-        InventoryStatusEnum.UNDER_REVIEW
+        InventoryStatusEnum.UNDER_REVIEW,
+        validatorId
     );
   }
 
@@ -714,10 +722,11 @@ public class InventoryServiceTests {
     when(getUserInfosService.getDepartment(validatorId))
         .thenReturn(department);
 
-    when(inventoryRepository.findByIdAndDepartmentIdAndStatus(
+    when(inventoryRepository.findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
         inventoryId,
         departmentId,
-        InventoryStatusEnum.UNDER_REVIEW
+        InventoryStatusEnum.UNDER_REVIEW,
+        validatorId
     )).thenReturn(Optional.empty());
 
     NotFoundException exception = assertThrows(
@@ -746,7 +755,8 @@ public class InventoryServiceTests {
     when(getUserInfosService.getDepartment(validatorId))
         .thenReturn(department);
 
-    when(inventoryRepository.findByIdAndDepartmentIdAndStatus(
+    when(inventoryRepository.findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
+        any(),
         any(),
         any(),
         any()
@@ -757,10 +767,11 @@ public class InventoryServiceTests {
         () -> inventoryService.rejectInventory(input)
     );
 
-    verify(inventoryRepository).findByIdAndDepartmentIdAndStatus(
+    verify(inventoryRepository).findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
         eq(inventoryId),
         eq(departmentId),
-        eq(InventoryStatusEnum.UNDER_REVIEW)
+        eq(InventoryStatusEnum.UNDER_REVIEW),
+        eq(validatorId)
     );
   }
 
@@ -802,10 +813,11 @@ public class InventoryServiceTests {
     when(getUserInfosService.getDepartment(validatorId))
         .thenReturn(department);
 
-    when(inventoryRepository.findByIdAndDepartmentIdAndStatus(
+    when(inventoryRepository.findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
         inventoryId,
         departmentId,
-        InventoryStatusEnum.UNDER_REVIEW
+        InventoryStatusEnum.UNDER_REVIEW,
+        validatorId
     )).thenReturn(Optional.of(inventory));
 
     when(inventoryRepository.save(any(InventoryEntity.class)))
@@ -844,10 +856,11 @@ public class InventoryServiceTests {
     when(getUserInfosService.getDepartment(validatorId))
         .thenReturn(department);
 
-    when(inventoryRepository.findByIdAndDepartmentIdAndStatus(
+    when(inventoryRepository.findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
         inventoryId,
         departmentId,
-        InventoryStatusEnum.UNDER_REVIEW
+        InventoryStatusEnum.UNDER_REVIEW,
+        validatorId
     )).thenReturn(Optional.of(inventory));
 
     ApproveInventoryOutputDTO output = inventoryService.approveInventory(input);
@@ -865,10 +878,11 @@ public class InventoryServiceTests {
     assertNotNull(output);
 
     verify(getUserInfosService).getDepartment(validatorId);
-    verify(inventoryRepository).findByIdAndDepartmentIdAndStatus(
+    verify(inventoryRepository).findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
         inventoryId,
         departmentId,
-        InventoryStatusEnum.UNDER_REVIEW
+        InventoryStatusEnum.UNDER_REVIEW,
+        validatorId
     );
   }
 
@@ -888,10 +902,11 @@ public class InventoryServiceTests {
     when(getUserInfosService.getDepartment(validatorId))
         .thenReturn(department);
 
-    when(inventoryRepository.findByIdAndDepartmentIdAndStatus(
+    when(inventoryRepository.findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
         inventoryId,
         departmentId,
-        InventoryStatusEnum.UNDER_REVIEW
+        InventoryStatusEnum.UNDER_REVIEW,
+        validatorId
     )).thenReturn(Optional.empty());
 
     NotFoundException exception = assertThrows(
@@ -920,7 +935,8 @@ public class InventoryServiceTests {
     when(getUserInfosService.getDepartment(validatorId))
         .thenReturn(department);
 
-    when(inventoryRepository.findByIdAndDepartmentIdAndStatus(
+    when(inventoryRepository.findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
+        any(),
         any(),
         any(),
         any()
@@ -931,10 +947,11 @@ public class InventoryServiceTests {
         () -> inventoryService.approveInventory(input)
     );
 
-    verify(inventoryRepository).findByIdAndDepartmentIdAndStatus(
+    verify(inventoryRepository).findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
         eq(inventoryId),
         eq(departmentId),
-        eq(InventoryStatusEnum.UNDER_REVIEW)
+        eq(InventoryStatusEnum.UNDER_REVIEW),
+        eq(validatorId)
     );
   }
 
@@ -976,10 +993,11 @@ public class InventoryServiceTests {
     when(getUserInfosService.getDepartment(validatorId))
         .thenReturn(department);
 
-    when(inventoryRepository.findByIdAndDepartmentIdAndStatus(
+    when(inventoryRepository.findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
         inventoryId,
         departmentId,
-        InventoryStatusEnum.UNDER_REVIEW
+        InventoryStatusEnum.UNDER_REVIEW,
+        validatorId
     )).thenReturn(Optional.of(inventory));
 
     when(inventoryRepository.save(any(InventoryEntity.class)))
@@ -991,5 +1009,374 @@ public class InventoryServiceTests {
     );
 
     verify(inventoryRepository).save(any(InventoryEntity.class));
+  }
+
+  // ---------------------------------------------------------------------------
+  // findManyReviewedInventories
+  // ---------------------------------------------------------------------------
+
+  @Test
+  @DisplayName("Should return reviewed inventories with pagination")
+  void findManyReviewedInventories() {
+    Integer userId = 1;
+    Integer departmentId = 10;
+
+    FindManyReviewedInventoriesInputDTO input =
+        new FindManyReviewedInventoriesInputDTO(
+            userId,
+            null,
+            null,
+            0,
+            10
+        );
+
+    DepartmentEntity department = new DepartmentEntity();
+    department.setId(departmentId);
+
+    EmployeeEntity employee = mock(EmployeeEntity.class);
+
+    StorageFileEntity storageFile = new StorageFileEntity(
+        "arquivo.csv",
+        "/uploads/arquivo.csv"
+    );
+
+    InventoryEntity inventory = new InventoryEntity(
+        "Inventário Teste",
+        InventoryTypeEnum.INPUT,
+        employee,
+        storageFile
+    );
+    inventory.setStatus(InventoryStatusEnum.APPROVED);
+
+    List<InventoryEntity> inventories = List.of(inventory);
+
+    when(getUserInfosService.getDepartment(userId))
+        .thenReturn(department);
+
+    when(inventoryRepository.findWithPagination(
+        any(Specification.class),
+        eq(input.skip()),
+        eq(input.take())
+    )).thenReturn(inventories);
+
+    when(inventoryRepository.count(any(Specification.class)))
+        .thenReturn(1L);
+
+    FindManyReviewedInventoriesOutputDTO output =
+        inventoryService.findManyReviewedInventories(input);
+
+    assertEquals(1, output.inventories().size());
+    assertEquals(1L, output.totalCount());
+
+    verify(getUserInfosService).getDepartment(userId);
+
+    verify(inventoryRepository).findWithPagination(
+        any(Specification.class),
+        eq(input.skip()),
+        eq(input.take())
+    );
+
+    verify(inventoryRepository).count(any(Specification.class));
+  }
+
+  @Test
+  @DisplayName("Should return an empty list when there are no reviewed inventories")
+  void findManyReviewedInventoriesEmpty() {
+    Integer userId = 1;
+    Integer departmentId = 10;
+
+    FindManyReviewedInventoriesInputDTO input =
+        new FindManyReviewedInventoriesInputDTO(
+            userId,
+            null,
+            null,
+            0,
+            10
+        );
+
+    DepartmentEntity department = new DepartmentEntity();
+    department.setId(departmentId);
+
+    when(getUserInfosService.getDepartment(userId))
+        .thenReturn(department);
+
+    when(inventoryRepository.findWithPagination(
+        any(Specification.class),
+        eq(input.skip()),
+        eq(input.take())
+    )).thenReturn(List.of());
+
+    when(inventoryRepository.count(any(Specification.class)))
+        .thenReturn(0L);
+
+    FindManyReviewedInventoriesOutputDTO output =
+        inventoryService.findManyReviewedInventories(input);
+
+    assertEquals(0, output.inventories().size());
+    assertEquals(0L, output.totalCount());
+
+    verify(inventoryRepository).findWithPagination(
+        any(Specification.class),
+        eq(input.skip()),
+        eq(input.take())
+    );
+
+    verify(inventoryRepository).count(any(Specification.class));
+  }
+
+  @Test
+  @DisplayName("Should apply pagination parameters correctly")
+  void findManyReviewedInventoriesPagination() {
+    Integer userId = 1;
+    Integer departmentId = 10;
+
+    Integer skip = 20;
+    Integer take = 10;
+
+    FindManyReviewedInventoriesInputDTO input =
+        new FindManyReviewedInventoriesInputDTO(
+            userId,
+            null,
+            null,
+            skip,
+            take
+        );
+
+    DepartmentEntity department = new DepartmentEntity();
+    department.setId(departmentId);
+
+    when(getUserInfosService.getDepartment(userId))
+        .thenReturn(department);
+
+    when(inventoryRepository.findWithPagination(
+        any(Specification.class),
+        eq(skip),
+        eq(take)
+    )).thenReturn(List.of());
+
+    when(inventoryRepository.count(any(Specification.class)))
+        .thenReturn(0L);
+
+    inventoryService.findManyReviewedInventories(input);
+
+    verify(inventoryRepository).findWithPagination(
+        any(Specification.class),
+        eq(skip),
+        eq(take)
+    );
+  }
+
+  @Test
+  @DisplayName("Should count reviewed inventories using the same specification")
+  void findManyReviewedInventoriesCount() {
+    Integer userId = 1;
+    Integer departmentId = 10;
+
+    FindManyReviewedInventoriesInputDTO input =
+        new FindManyReviewedInventoriesInputDTO(
+            userId,
+            null,
+            null,
+            0,
+            10
+        );
+
+    DepartmentEntity department = new DepartmentEntity();
+    department.setId(departmentId);
+
+    when(getUserInfosService.getDepartment(userId))
+        .thenReturn(department);
+
+    when(inventoryRepository.findWithPagination(
+        any(Specification.class),
+        any(),
+        any()
+    )).thenReturn(List.of());
+
+    when(inventoryRepository.count(any(Specification.class)))
+        .thenReturn(7L);
+
+    FindManyReviewedInventoriesOutputDTO output =
+        inventoryService.findManyReviewedInventories(input);
+
+    assertEquals(7L, output.totalCount());
+
+    verify(inventoryRepository).count(any(Specification.class));
+  }
+
+  @Test
+  @DisplayName("Should not query inventories when the department lookup fails")
+  void findManyReviewedInventoriesWhenDepartmentLookupFails() {
+    Integer userId = 1;
+
+    FindManyReviewedInventoriesInputDTO input =
+        new FindManyReviewedInventoriesInputDTO(
+            userId,
+            null,
+            null,
+            0,
+            10
+        );
+
+    when(getUserInfosService.getDepartment(userId))
+        .thenThrow(new RuntimeException("Department not found"));
+
+    assertThrows(
+        RuntimeException.class,
+        () -> inventoryService.findManyReviewedInventories(input)
+    );
+
+    verifyNoInteractions(inventoryRepository);
+  }
+
+  // ---------------------------------------------------------------------------
+  // findMineInventoryById
+  // ---------------------------------------------------------------------------
+
+  @Test
+  @DisplayName("Should return the inventory details when it belongs to the requesting user")
+  void findMineInventoryById() {
+    Integer inventoryId = 5;
+    Integer userId = 1;
+
+    FindInventoryByIdInputDTO input = new FindInventoryByIdInputDTO(inventoryId, userId);
+
+    InventoryEntity inventory = new InventoryEntity();
+    inventory.setId(inventoryId);
+    inventory.setName("Inventário Teste");
+    inventory.setStatus(InventoryStatusEnum.UNDER_REVIEW);
+    inventory.setType(InventoryTypeEnum.INPUT);
+
+    when(inventoryRepository.findByIdAndOwnerEmployeeId(inventoryId, userId))
+        .thenReturn(Optional.of(inventory));
+
+    FindInventoryByIdOutputDTO output = inventoryService.findMineInventoryById(input);
+
+    assertEquals(inventoryId, output.id());
+    assertEquals("Inventário Teste", output.name());
+    assertEquals(InventoryStatusEnum.UNDER_REVIEW, output.status());
+
+    verify(inventoryRepository).findByIdAndOwnerEmployeeId(inventoryId, userId);
+    verifyNoInteractions(getUserInfosService);
+  }
+
+  @Test
+  @DisplayName("Should throw NotFoundException when the inventory does not belong to the user")
+  void findMineInventoryByIdNotFound() {
+    Integer inventoryId = 5;
+    Integer userId = 1;
+
+    FindInventoryByIdInputDTO input = new FindInventoryByIdInputDTO(inventoryId, userId);
+
+    when(inventoryRepository.findByIdAndOwnerEmployeeId(inventoryId, userId))
+        .thenReturn(Optional.empty());
+
+    NotFoundException exception = assertThrows(
+        NotFoundException.class,
+        () -> inventoryService.findMineInventoryById(input)
+    );
+
+    assertEquals("exception.inventory.not-found", exception.getMessage());
+  }
+
+  @Test
+  @DisplayName("Should look up the inventory using the given id and owner employee id")
+  void findMineInventoryByIdSearchesByIdAndOwner() {
+    Integer inventoryId = 5;
+    Integer userId = 1;
+
+    FindInventoryByIdInputDTO input = new FindInventoryByIdInputDTO(inventoryId, userId);
+
+    when(inventoryRepository.findByIdAndOwnerEmployeeId(any(), any()))
+        .thenReturn(Optional.empty());
+
+    assertThrows(
+        NotFoundException.class,
+        () -> inventoryService.findMineInventoryById(input)
+    );
+
+    verify(inventoryRepository).findByIdAndOwnerEmployeeId(eq(inventoryId), eq(userId));
+  }
+
+  // ---------------------------------------------------------------------------
+  // findReviewedInventoryById
+  // ---------------------------------------------------------------------------
+
+  @Test
+  @DisplayName("Should return the inventory details when it belongs to the user's department")
+  void findReviewedInventoryById() {
+    Integer inventoryId = 5;
+    Integer userId = 1;
+    Integer departmentId = 10;
+
+    FindInventoryByIdInputDTO input = new FindInventoryByIdInputDTO(inventoryId, userId);
+
+    DepartmentEntity department = new DepartmentEntity();
+    department.setId(departmentId);
+
+    InventoryEntity inventory = new InventoryEntity();
+    inventory.setId(inventoryId);
+    inventory.setName("Inventário Teste");
+    inventory.setStatus(InventoryStatusEnum.APPROVED);
+    inventory.setType(InventoryTypeEnum.INPUT);
+
+    when(getUserInfosService.getDepartment(userId))
+        .thenReturn(department);
+
+    when(inventoryRepository.findByIdAndDepartmentId(inventoryId, departmentId))
+        .thenReturn(Optional.of(inventory));
+
+    FindInventoryByIdOutputDTO output = inventoryService.findReviewedInventoryById(input);
+
+    assertEquals(inventoryId, output.id());
+    assertEquals("Inventário Teste", output.name());
+    assertEquals(InventoryStatusEnum.APPROVED, output.status());
+
+    verify(getUserInfosService).getDepartment(userId);
+    verify(inventoryRepository).findByIdAndDepartmentId(inventoryId, departmentId);
+  }
+
+  @Test
+  @DisplayName("Should throw NotFoundException when the inventory is not in the user's department")
+  void findReviewedInventoryByIdNotFound() {
+    Integer inventoryId = 5;
+    Integer userId = 1;
+    Integer departmentId = 10;
+
+    FindInventoryByIdInputDTO input = new FindInventoryByIdInputDTO(inventoryId, userId);
+
+    DepartmentEntity department = new DepartmentEntity();
+    department.setId(departmentId);
+
+    when(getUserInfosService.getDepartment(userId))
+        .thenReturn(department);
+
+    when(inventoryRepository.findByIdAndDepartmentId(inventoryId, departmentId))
+        .thenReturn(Optional.empty());
+
+    NotFoundException exception = assertThrows(
+        NotFoundException.class,
+        () -> inventoryService.findReviewedInventoryById(input)
+    );
+
+    assertEquals("exception.inventory.not-found", exception.getMessage());
+  }
+
+  @Test
+  @DisplayName("Should not query inventories when the department lookup fails")
+  void findReviewedInventoryByIdWhenDepartmentLookupFails() {
+    Integer userId = 1;
+
+    FindInventoryByIdInputDTO input = new FindInventoryByIdInputDTO(5, userId);
+
+    when(getUserInfosService.getDepartment(userId))
+        .thenThrow(new RuntimeException("Department not found"));
+
+    assertThrows(
+        RuntimeException.class,
+        () -> inventoryService.findReviewedInventoryById(input)
+    );
+
+    verifyNoInteractions(inventoryRepository);
   }
 }

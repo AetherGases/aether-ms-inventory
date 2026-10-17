@@ -59,15 +59,21 @@ public class GlobalExceptionHandler {
             Class<?> requiredType = ex.getBindingResult()
                 .getFieldType(fieldError.getField());
 
-            String allowedValues = Arrays.stream(requiredType.getEnumConstants())
-                .map(Object::toString)
-                .collect(Collectors.joining(", "));
+            if (requiredType != null && requiredType.isEnum()) {
+              String allowedValues = Arrays.stream(requiredType.getEnumConstants())
+                  .map(Object::toString)
+                  .collect(Collectors.joining(", "));
+
+              return messageService.getMessage(
+                  "exception.invalid.enum",
+                  fieldError.getField(),
+                  fieldError.getRejectedValue(),
+                  allowedValues
+              );
+            }
 
             return messageService.getMessage(
-                "exception.invalid.enum",
-                fieldError.getField(),
-                fieldError.getRejectedValue(),
-                allowedValues
+                "exception.invalid.request.parameter"
             );
           }
 

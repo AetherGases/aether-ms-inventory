@@ -4,10 +4,12 @@ import com.aether.ms_inventory.inventory.dto.input.ApproveInventoryInputDTO;
 import com.aether.ms_inventory.inventory.dto.input.RejectInventoryInputDTO;
 import com.aether.ms_inventory.inventory.dto.output.*;
 import com.aether.ms_inventory.inventory.dto.query_params.FindManyPendingInventoriesQueryParamsDTO;
+import com.aether.ms_inventory.inventory.dto.query_params.FindManyReviewedInventoriesQueryParamsDTO;
 import com.aether.ms_inventory.inventory.dto.query_params.FindMyInventoriesQueryParamsDTO;
 import com.aether.ms_inventory.inventory.dto.request.ApproveInventoryRequestDTO;
 import com.aether.ms_inventory.inventory.dto.request.RegisterInventoryRequestDTO;
 import com.aether.ms_inventory.inventory.dto.request.RejectInventoryRequestDTO;
+import com.aether.ms_inventory.inventory.dto.route_params.FindInventoryByIdRouteParamsDTO;
 import com.aether.ms_inventory.inventory.mappers.InventoryMapper;
 import com.aether.ms_inventory.inventory.services.InventoryService;
 import com.aether.ms_inventory.shared.docs.InventoryControllerDocs;
@@ -86,6 +88,68 @@ public class InventoryController implements InventoryControllerDocs {
     return new ResponseEntity<>(
         this.inventoryService.findManyPendingReports(
             InventoryMapper.convertFindManyPendingInventoryQueryToInput(user.getId(), query)
+        ),
+        HttpStatus.OK
+    );
+  }
+
+  @GetMapping("/reviewed")
+  public ResponseEntity<FindManyReviewedInventoriesOutputDTO> findManyReviewedInventories(
+      @ModelAttribute
+      @Valid
+      FindManyReviewedInventoriesQueryParamsDTO query,
+
+      Authentication authentication
+  ){
+    CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
+
+    return new ResponseEntity<>(
+        this.inventoryService.findManyReviewedInventories(
+            InventoryMapper.convertFindManyReviewedInventoryQueryToInput(user.getId(), query)
+        ),
+        HttpStatus.OK
+    );
+  }
+
+  @Override
+  @GetMapping("/mine/{id}")
+  public ResponseEntity<FindInventoryByIdOutputDTO> findMineInventoryById(
+      @ModelAttribute
+      @Valid
+      FindInventoryByIdRouteParamsDTO params,
+
+      Authentication authentication
+  ){
+    CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
+
+    return new ResponseEntity<>(
+        this.inventoryService.findMineInventoryById(
+            InventoryMapper.convertFindInventoryByIdRouteParamsToInput(
+                user.getId(),
+                params
+            )
+        ),
+        HttpStatus.OK
+    );
+  }
+
+  @Override
+  @GetMapping("/reviewed/{id}")
+  public ResponseEntity<FindInventoryByIdOutputDTO> findReviewedInventoryById(
+      @ModelAttribute
+      @Valid
+      FindInventoryByIdRouteParamsDTO params,
+
+      Authentication authentication
+  ){
+    CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
+
+    return new ResponseEntity<>(
+        this.inventoryService.findReviewedInventoryById(
+            InventoryMapper.convertFindInventoryByIdRouteParamsToInput(
+                user.getId(),
+                params
+            )
         ),
         HttpStatus.OK
     );
