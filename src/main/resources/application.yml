@@ -37,3 +37,14 @@ spring:
 
 server:
   port: ${API_PORT:8080}
+
+cloudinary:
+  cloud_name: ${CLOUDINARY_CLOUD_NAME}
+  api_key: ${CLOUDINARY_API_KEY}
+  api_secret: ${CLOUDINARY_API_SECRET}
+
+inventory:
+  generation-worker:
+    enabled: true
+    poll-interval-ms: 5000
+    template-path: templates/planilha-inscricao.xlsx

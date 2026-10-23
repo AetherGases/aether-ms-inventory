@@ -59,3 +59,7 @@ cloudinary:
   cloud_name: test-cloud
   api_key: test-api-key
   api_secret: test-api-secret
+
+inventory:
+  generation-worker:
+    enabled: false

@@ -6,6 +6,7 @@ import com.aether.ms_inventory.shared.enums.InventoryTypeEnum;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.*;
 import com.aether.ms_inventory.shared.persistence.postgres.repositories.*;
 import com.aether.ms_inventory.shared.persistence.redis.repositories.InputInventoryRepository;
+import com.aether.ms_inventory.shared.persistence.redis.repositories.InventoryGenerationQueueRepository;
 import com.aether.ms_inventory.shared.security.jwt.JwtTokenProvider;
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.*;
@@ -14,6 +15,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -78,6 +81,9 @@ class InventoryControllerTests {
 
   @Autowired
   private JwtTokenProvider jwtTokenProvider;
+
+  @Autowired
+  private RedisConnectionFactory redisConnectionFactory;
 
   private PermissionGroupEntity permissionGroup;
   private EnterpriseEntity enterprise;
@@ -300,6 +306,18 @@ class InventoryControllerTests {
 
   private String registerBody(String name, String fileName, String path) {
     return registerBody(name, REGISTERED_CONSOLIDATION_APPROACH, fileName, path);
+  }
+
+  private String generateBody(String name, String consolidationApproach, String startDatePeriod, String endDatePeriod) {
+    return """
+        {"name": "%s", "consolidationApproach": "%s", "startDatePeriod": "%s", "endDatePeriod": "%s"}
+        """.formatted(name, consolidationApproach, startDatePeriod, endDatePeriod);
+  }
+
+  private String popGenerationQueue() {
+    StringRedisTemplate stringRedisTemplate = new StringRedisTemplate(redisConnectionFactory);
+
+    return stringRedisTemplate.opsForList().rightPop(InventoryGenerationQueueRepository.QUEUE_KEY);
   }
 
   private String registerBody(String name, String consolidationApproach, String fileName, String path) {
@@ -726,6 +744,149 @@ class InventoryControllerTests {
 
     mockMvc.perform(
             post("/api/inventories")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isBadRequest());
+  }
+
+  // ---------------------------------------------------------------------------
+  // POST /api/inventories/generate
+  // ---------------------------------------------------------------------------
+
+  @Test
+  @DisplayName("Should return 201, create a requested output inventory and enqueue a generation job")
+  void generateInventorySuccess() throws Exception {
+
+    String token = generateJwt(employeeActive);
+
+    MvcResult result = mockMvc.perform(
+            post("/api/inventories/generate")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(generateBody(
+                    "Inventário Saída Teste",
+                    REGISTERED_CONSOLIDATION_APPROACH,
+                    "2025-01-01",
+                    "2025-12-31"
+                ))
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.id").isNumber())
+        .andExpect(jsonPath("$.name").value("Inventário Saída Teste"))
+        .andExpect(jsonPath("$.type").value(InventoryTypeEnum.OUTPUT.name()))
+        .andExpect(jsonPath("$.status").value(InventoryStatusEnum.REQUESTED.name()))
+        .andReturn();
+
+    String responseBody = result.getResponse().getContentAsString();
+    int inventoryId = JsonPath.read(responseBody, "$.id");
+
+    inventoriesIds.add(inventoryId);
+
+    InventoryEntity savedInventory = inventoryRepository.findById(inventoryId).orElse(null);
+
+    assertNotNull(savedInventory, "Inventário deveria ter sido persistido no banco");
+    assertEquals(InventoryTypeEnum.OUTPUT, savedInventory.getType());
+    assertEquals(InventoryStatusEnum.REQUESTED, savedInventory.getStatus());
+    assertEquals(employeeActive.getId(), savedInventory.getOwnerEmployee().getId());
+    assertEquals(java.time.LocalDate.of(2025, 1, 1), savedInventory.getInventoryPeriodStart());
+    assertEquals(java.time.LocalDate.of(2025, 12, 31), savedInventory.getInventoryPeriodEnd());
+
+    String queuedPayload = popGenerationQueue();
+
+    assertNotNull(queuedPayload, "Uma tarefa deveria ter sido enviada para a fila de geração");
+
+    int queuedInventoryId = JsonPath.read(queuedPayload, "$.inventoryId");
+    assertEquals(inventoryId, queuedInventoryId);
+  }
+
+  @Test
+  @DisplayName("Should return 400 when the end date is before the start date")
+  void generateInventoryWithInvalidPeriod() throws Exception {
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            post("/api/inventories/generate")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(generateBody(
+                    "Inventário Saída Teste",
+                    REGISTERED_CONSOLIDATION_APPROACH,
+                    "2025-12-31",
+                    "2025-01-01"
+                ))
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isBadRequest());
+
+    assertNull(popGenerationQueue(), "Nenhuma tarefa deveria ter sido enviada para a fila de geração");
+  }
+
+  @Test
+  @DisplayName("Should return 401 when generating without JWT")
+  void generateInventoryWithoutAuthentication() throws Exception {
+
+    mockMvc.perform(
+            post("/api/inventories/generate")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(generateBody(
+                    "Inventário Saída Teste",
+                    REGISTERED_CONSOLIDATION_APPROACH,
+                    "2025-01-01",
+                    "2025-12-31"
+                ))
+        )
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  @DisplayName("Should return 401 when generating with an invalid JWT")
+  void generateInventoryWithInvalidToken() throws Exception {
+
+    mockMvc.perform(
+            post("/api/inventories/generate")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(generateBody(
+                    "Inventário Saída Teste",
+                    REGISTERED_CONSOLIDATION_APPROACH,
+                    "2025-01-01",
+                    "2025-12-31"
+                ))
+                .header("Authorization", "Bearer token-invalido")
+        )
+        .andExpect(status().isUnauthorized());
+  }
+
+  @ParameterizedTest(name = "Should return 400 for invalid body: {0}")
+  @ValueSource(strings = {
+      "{}",
+      "{\"name\":\"\",\"consolidationApproach\":\"Participação acionária\",\"startDatePeriod\":\"2025-01-01\",\"endDatePeriod\":\"2025-12-31\"}",
+      "{\"name\":\"Inventário\",\"consolidationApproach\":\"\",\"startDatePeriod\":\"2025-01-01\",\"endDatePeriod\":\"2025-12-31\"}",
+      "{\"name\":\"Inventário\",\"consolidationApproach\":\"Participação acionária\",\"endDatePeriod\":\"2025-12-31\"}",
+      "{\"name\":\"Inventário\",\"consolidationApproach\":\"Participação acionária\",\"startDatePeriod\":\"2025-01-01\"}",
+      "{invalid-json"
+  })
+  void generateInventoryWithInvalidBody(String body) throws Exception {
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            post("/api/inventories/generate")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body)
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  @DisplayName("Should return 400 when generating without a request body")
+  void generateInventoryWithoutBody() throws Exception {
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            post("/api/inventories/generate")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", "Bearer " + token)
         )

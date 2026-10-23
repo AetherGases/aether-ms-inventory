@@ -5,6 +5,7 @@ import com.aether.ms_inventory.inventory.dto.output.*;
 import com.aether.ms_inventory.inventory.services.InventoryService;
 import com.aether.ms_inventory.shared.enums.InventoryStatusEnum;
 import com.aether.ms_inventory.shared.enums.InventoryTypeEnum;
+import com.aether.ms_inventory.shared.exceptions.BadRequestException;
 import com.aether.ms_inventory.shared.exceptions.NotFoundException;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.DepartmentEntity;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.EmployeeEntity;
@@ -14,7 +15,9 @@ import com.aether.ms_inventory.shared.persistence.postgres.repositories.Inventor
 import com.aether.ms_inventory.shared.persistence.postgres.repositories.StorageFileRepository;
 import com.aether.ms_inventory.shared.persistence.redis.entities.InputInventoryDocument;
 import com.aether.ms_inventory.shared.persistence.redis.repositories.InputInventoryRepository;
+import com.aether.ms_inventory.shared.persistence.redis.repositories.InventoryGenerationQueueRepository;
 import com.aether.ms_inventory.shared.services.GetUserInfosService;
+import com.aether.ms_inventory.shared.workers.InventoryGenerationJob;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -48,6 +51,9 @@ public class InventoryServiceTests {
   private StorageFileRepository storageFileRepository;
   @Mock
   private InputInventoryRepository inputInventoryRepository;
+
+  @Mock
+  private InventoryGenerationQueueRepository inventoryGenerationQueueRepository;
 
   @Mock
   private GetUserInfosService getUserInfosService;
@@ -437,6 +443,145 @@ public class InventoryServiceTests {
 
     verify(storageFileRepository).save(any(StorageFileEntity.class));
     verify(inventoryRepository).save(any(InventoryEntity.class));
+  }
+
+  // ---------------------------------------------------------------------------
+  // generateInventory
+  // ---------------------------------------------------------------------------
+
+  @Test
+  @DisplayName("Should create a requested output inventory and enqueue a generation job")
+  void generateInventory() {
+    Integer userId = 1;
+    Integer departmentId = 10;
+
+    LocalDate periodStart = LocalDate.of(2025, 1, 1);
+    LocalDate periodEnd = LocalDate.of(2025, 12, 31);
+
+    GenerateInventoryInputDTO input =
+        new GenerateInventoryInputDTO(
+            userId,
+            "Inventário Teste",
+            "Participação acionária",
+            periodStart,
+            periodEnd
+        );
+
+    EmployeeEntity employee = mock(EmployeeEntity.class);
+
+    DepartmentEntity department = new DepartmentEntity();
+    department.setId(departmentId);
+
+    when(employee.getDepartment()).thenReturn(department);
+
+    when(getUserInfosService.getEmployee(userId))
+        .thenReturn(employee);
+
+    GenerateInventoryOutputDTO output = inventoryService.generateInventory(input);
+
+    ArgumentCaptor<InventoryEntity> inventoryCaptor =
+        ArgumentCaptor.forClass(InventoryEntity.class);
+
+    verify(inventoryRepository).save(inventoryCaptor.capture());
+
+    InventoryEntity savedInventory = inventoryCaptor.getValue();
+    assertEquals("Inventário Teste", savedInventory.getName());
+    assertEquals("Participação acionária", savedInventory.getConsolidationApproach());
+    assertEquals(periodStart, savedInventory.getInventoryPeriodStart());
+    assertEquals(periodEnd, savedInventory.getInventoryPeriodEnd());
+    assertEquals(InventoryTypeEnum.OUTPUT, savedInventory.getType());
+    assertEquals(InventoryStatusEnum.REQUESTED, savedInventory.getStatus());
+    assertSame(employee, savedInventory.getOwnerEmployee());
+
+    ArgumentCaptor<InventoryGenerationJob> jobCaptor =
+        ArgumentCaptor.forClass(InventoryGenerationJob.class);
+
+    verify(inventoryGenerationQueueRepository).enqueue(jobCaptor.capture());
+
+    assertEquals(savedInventory.getId(), jobCaptor.getValue().inventoryId());
+
+    assertEquals("Inventário Teste", output.name());
+    assertEquals(InventoryTypeEnum.OUTPUT, output.type());
+    assertEquals(InventoryStatusEnum.REQUESTED, output.status());
+    assertEquals(periodStart, output.periodStart());
+    assertEquals(periodEnd, output.periodEnd());
+  }
+
+  @Test
+  @DisplayName("Should throw BadRequestException and not save when the end date is before the start date")
+  void generateInventoryWithInvalidPeriod() {
+    Integer userId = 1;
+
+    GenerateInventoryInputDTO input =
+        new GenerateInventoryInputDTO(
+            userId,
+            "Inventário Teste",
+            "Participação acionária",
+            LocalDate.of(2025, 12, 31),
+            LocalDate.of(2025, 1, 1)
+        );
+
+    BadRequestException exception = assertThrows(
+        BadRequestException.class,
+        () -> inventoryService.generateInventory(input)
+    );
+
+    assertEquals("exception.inventory-period.invalid", exception.getMessage());
+
+    verifyNoInteractions(getUserInfosService, inventoryRepository, inventoryGenerationQueueRepository);
+  }
+
+  @Test
+  @DisplayName("Should not save or enqueue anything when the employee lookup fails")
+  void generateInventoryWhenEmployeeLookupFails() {
+    Integer userId = 1;
+
+    GenerateInventoryInputDTO input =
+        new GenerateInventoryInputDTO(
+            userId,
+            "Inventário Teste",
+            "Participação acionária",
+            LocalDate.of(2025, 1, 1),
+            LocalDate.of(2025, 12, 31)
+        );
+
+    when(getUserInfosService.getEmployee(userId))
+        .thenThrow(new RuntimeException("Employee not found"));
+
+    assertThrows(
+        RuntimeException.class,
+        () -> inventoryService.generateInventory(input)
+    );
+
+    verifyNoInteractions(inventoryRepository, inventoryGenerationQueueRepository);
+  }
+
+  @Test
+  @DisplayName("Should not enqueue a job when saving the inventory fails")
+  void generateInventoryWhenSaveFails() {
+    Integer userId = 1;
+
+    GenerateInventoryInputDTO input =
+        new GenerateInventoryInputDTO(
+            userId,
+            "Inventário Teste",
+            "Participação acionária",
+            LocalDate.of(2025, 1, 1),
+            LocalDate.of(2025, 12, 31)
+        );
+
+    when(getUserInfosService.getEmployee(userId))
+        .thenReturn(mock(EmployeeEntity.class));
+
+    when(inventoryRepository.save(any(InventoryEntity.class)))
+        .thenThrow(new RuntimeException("Database error"));
+
+    assertThrows(
+        RuntimeException.class,
+        () -> inventoryService.generateInventory(input)
+    );
+
+    verifyNoInteractions(inventoryGenerationQueueRepository);
   }
 
   // ---------------------------------------------------------------------------
