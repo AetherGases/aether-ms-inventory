@@ -4,10 +4,9 @@ import com.aether.ms_inventory.shared.dto.output.AekoReportOutputDTO;
 import com.aether.ms_inventory.shared.enums.InventoryStatusEnum;
 import com.aether.ms_inventory.shared.exceptions.InventoryProcessingException;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.CategoryEntity;
-import com.aether.ms_inventory.shared.persistence.postgres.entities.EmissionEntity;
+import com.aether.ms_inventory.shared.persistence.postgres.entities.EmployeeEntity;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.GasEntity;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.InventoryEntity;
-import com.aether.ms_inventory.shared.persistence.postgres.entities.ReductionEntity;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.ScopeEntity;
 import com.aether.ms_inventory.shared.persistence.postgres.repositories.CategoryRepository;
 import com.aether.ms_inventory.shared.persistence.postgres.repositories.EmissionRepository;
@@ -20,7 +19,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -35,7 +33,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -59,6 +60,10 @@ class InventoryProcessingPersistenceTests {
     inventory = new InventoryEntity();
     inventory.setId(1);
     inventory.setStatus(InventoryStatusEnum.PROCESSING);
+
+    EmployeeEntity owner = new EmployeeEntity();
+    owner.setId(7);
+    inventory.setOwnerEmployee(owner);
   }
 
   private void stubCatalogs() {
@@ -81,8 +86,15 @@ class InventoryProcessingPersistenceTests {
     );
   }
 
+  private AekoReportOutputDTO.Emission emission(Integer gas, Integer category, boolean reduction) {
+    return new AekoReportOutputDTO.Emission(
+        new BigDecimal("12.5"), "Fator GHG Protocol", new BigDecimal("40"),
+        gas, 1, category, false, reduction
+    );
+  }
+
   @Test
-  @DisplayName("Should persist emissions and reductions and move inventory to UNDER_REVIEW")
+  @DisplayName("Should register emissions and reductions through the procedures and move inventory to UNDER_REVIEW")
   void saveResult() {
     stubCatalogs();
     when(inventoryRepository.findByIdForUpdate(1)).thenReturn(Optional.of(inventory));
@@ -94,21 +106,77 @@ class InventoryProcessingPersistenceTests {
 
     persistence.saveResult(1, response);
 
-    @SuppressWarnings("unchecked")
-    ArgumentCaptor<List<EmissionEntity>> emissions = ArgumentCaptor.forClass(List.class);
-    @SuppressWarnings("unchecked")
-    ArgumentCaptor<List<ReductionEntity>> reductions = ArgumentCaptor.forClass(List.class);
+    verify(emissionRepository).registerEmission(
+        new BigDecimal("12.5"), 1, 1, 1, 2,
+        "Fator GHG Protocol", new BigDecimal("40"),
+        "7", "MS_INVENTORY_WORKER"
+    );
+    verify(reductionRepository).registerReduction(
+        new BigDecimal("12.5"), 1, 2, "7", "MS_INVENTORY_WORKER"
+    );
+    verify(emissionRepository, never()).saveAll(any());
+    verify(reductionRepository, never()).saveAll(any());
 
-    verify(emissionRepository).saveAll(emissions.capture());
-    verify(reductionRepository).saveAll(reductions.capture());
-
-    assertEquals(1, emissions.getValue().size());
-    assertEquals(1, reductions.getValue().size());
     assertEquals(InventoryStatusEnum.UNDER_REVIEW, inventory.getStatus());
     assertEquals("Inventário 2025", inventory.getDescription());
     assertEquals(LocalDate.of(2025, 1, 1), inventory.getInventoryPeriodStart());
     assertEquals(LocalDate.of(2025, 12, 31), inventory.getInventoryPeriodEnd());
     verify(inventoryRepository).save(inventory);
+  }
+
+  @Test
+  @DisplayName("Should register an emission without category passing a null category to the procedure")
+  void emissionWithoutCategory() {
+    stubCatalogs();
+    when(inventoryRepository.findByIdForUpdate(1)).thenReturn(Optional.of(inventory));
+
+    persistence.saveResult(1, new AekoReportOutputDTO(
+        "desc", null, null, List.of(emission(1, null, false), emission(1, null, false))
+    ));
+
+    verify(emissionRepository, times(2)).registerEmission(
+        any(), eq(1), eq(1), eq(1), isNull(), any(), any(), eq("7"), eq("MS_INVENTORY_WORKER")
+    );
+  }
+
+  @Test
+  @DisplayName("Should fail (retryable) and register nothing when the AI returns a reduction without category")
+  void reductionWithoutCategory() {
+    stubCatalogs();
+    when(inventoryRepository.findByIdForUpdate(1)).thenReturn(Optional.of(inventory));
+
+    InventoryProcessingException ex = assertThrows(
+        InventoryProcessingException.class,
+        () -> persistence.saveResult(1, new AekoReportOutputDTO(
+            "desc", null, null, List.of(emission(1, false), emission(1, null, true))
+        ))
+    );
+
+    assertTrue(ex.isRetryable());
+    verify(emissionRepository, never()).registerEmission(any(), any(), any(), any(), any(), any(), any(), any(), any());
+    verify(reductionRepository, never()).registerReduction(any(), any(), any(), any(), any());
+    assertEquals(InventoryStatusEnum.PROCESSING, inventory.getStatus());
+  }
+
+  @Test
+  @DisplayName("Should fail (retryable) and register nothing when the AI returns a negative reduction")
+  void negativeReduction() {
+    stubCatalogs();
+    when(inventoryRepository.findByIdForUpdate(1)).thenReturn(Optional.of(inventory));
+
+    AekoReportOutputDTO.Emission negative = new AekoReportOutputDTO.Emission(
+        new BigDecimal("-3"), null, null, null, null, 2, false, true
+    );
+
+    InventoryProcessingException ex = assertThrows(
+        InventoryProcessingException.class,
+        () -> persistence.saveResult(1, new AekoReportOutputDTO(
+            "desc", null, null, List.of(negative)
+        ))
+    );
+
+    assertTrue(ex.isRetryable());
+    verify(reductionRepository, never()).registerReduction(any(), any(), any(), any(), any());
   }
 
   @Test
@@ -140,7 +208,7 @@ class InventoryProcessingPersistenceTests {
     );
 
     assertTrue(ex.isRetryable());
-    verify(emissionRepository, never()).saveAll(any());
+    verify(emissionRepository, never()).registerEmission(any(), any(), any(), any(), any(), any(), any(), any(), any());
     assertEquals(InventoryStatusEnum.PROCESSING, inventory.getStatus());
   }
 
@@ -154,7 +222,7 @@ class InventoryProcessingPersistenceTests {
         "desc", null, null, List.of(emission(1, false))
     ));
 
-    verify(emissionRepository, never()).saveAll(any());
+    verify(emissionRepository, never()).registerEmission(any(), any(), any(), any(), any(), any(), any(), any(), any());
   }
 
   @Test

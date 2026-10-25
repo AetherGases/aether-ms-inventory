@@ -31,6 +31,7 @@ public class InventoryProcessingPersistence {
   private static final int MAX_DESCRIPTION = 150;
   private static final int MAX_METHODOLOGY = 150;
   private static final int MAX_STATUS_MESSAGE = 100;
+  private static final String LOGICAL_ORIGIN = "MS_INVENTORY_WORKER";
 
   private final InventoryRepository inventoryRepository;
   private final EmissionRepository emissionRepository;
@@ -105,8 +106,8 @@ public class InventoryProcessingPersistence {
     Map<Integer, CategoryEntity> categories =
         indexById(categoryRepository.findAll(), CategoryEntity::getId);
 
-    List<EmissionEntity> emissions = new ArrayList<>();
-    List<ReductionEntity> reductions = new ArrayList<>();
+    List<EmissionRecord> emissions = new ArrayList<>();
+    List<ReductionRecord> reductions = new ArrayList<>();
 
     for (AekoReportOutputDTO.Emission item : response.emissions()) {
       if (item == null || item.quantityCo2e() == null)
@@ -115,11 +116,13 @@ public class InventoryProcessingPersistence {
       CategoryEntity category = lookup(categories, item.category(), "categoria", false);
 
       if (Boolean.TRUE.equals(item.reduction())) {
-        ReductionEntity reduction = new ReductionEntity();
-        reduction.setQuantityCo2e(item.quantityCo2e());
-        reduction.setCategory(category);
-        reduction.setInventory(inventory);
-        reductions.add(reduction);
+        if (item.quantityCo2e().signum() < 0)
+          throw new InventoryProcessingException("A IA retornou uma redução negativa", true);
+
+        if (category == null)
+          throw new InventoryProcessingException("A IA retornou uma redução sem categoria", true);
+
+        reductions.add(new ReductionRecord(item.quantityCo2e(), category.getId()));
         continue;
       }
 
@@ -136,19 +139,43 @@ public class InventoryProcessingPersistence {
         );
       }
 
-      EmissionEntity emission = new EmissionEntity();
-      emission.setQuantityCo2e(item.quantityCo2e());
-      emission.setMethodologyDescription(truncate(item.methodologyDescription(), MAX_METHODOLOGY));
-      emission.setSupplierDataPercentage(supplierPercentage);
-      emission.setGas(lookup(gases, item.gas(), "gás", true));
-      emission.setScope(lookup(scopes, item.scope(), "escopo", true));
-      emission.setCategory(category);
-      emission.setInventory(inventory);
-      emissions.add(emission);
+      emissions.add(new EmissionRecord(
+          item.quantityCo2e(),
+          lookup(gases, item.gas(), "gás", true).getId(),
+          lookup(scopes, item.scope(), "escopo", true).getId(),
+          category == null ? null : category.getId(),
+          truncate(item.methodologyDescription(), MAX_METHODOLOGY),
+          supplierPercentage
+      ));
     }
 
-    emissionRepository.saveAll(emissions);
-    reductionRepository.saveAll(reductions);
+    String actorId = inventory.getOwnerEmployee() == null
+        ? null
+        : String.valueOf(inventory.getOwnerEmployee().getId());
+
+    for (EmissionRecord emission : emissions) {
+      emissionRepository.registerEmission(
+          emission.quantityCo2e(),
+          inventory.getId(),
+          emission.idGas(),
+          emission.idScope(),
+          emission.idCategory(),
+          emission.methodologyDescription(),
+          emission.supplierDataPercentage(),
+          actorId,
+          LOGICAL_ORIGIN
+      );
+    }
+
+    for (ReductionRecord reduction : reductions) {
+      reductionRepository.registerReduction(
+          reduction.quantityCo2e(),
+          inventory.getId(),
+          reduction.idCategory(),
+          actorId,
+          LOGICAL_ORIGIN
+      );
+    }
 
     LocalDate start = parseDate(response.startPeriod());
     LocalDate end = parseDate(response.endPeriod());
@@ -190,6 +217,17 @@ public class InventoryProcessingPersistence {
       inventoryRepository.save(inventory);
     });
   }
+
+  private record EmissionRecord(
+      BigDecimal quantityCo2e,
+      Integer idGas,
+      Integer idScope,
+      Integer idCategory,
+      String methodologyDescription,
+      BigDecimal supplierDataPercentage
+  ) {}
+
+  private record ReductionRecord(BigDecimal quantityCo2e, Integer idCategory) {}
 
   private static <T> Map<Integer, T> indexById(List<T> items, Function<T, Integer> idOf) {
     return items.stream().collect(Collectors.toMap(idOf, Function.identity()));

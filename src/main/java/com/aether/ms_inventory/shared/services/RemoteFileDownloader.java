@@ -96,10 +96,21 @@ public class RemoteFileDownloader {
       throw new InventoryProcessingException("URL do arquivo inválida", false);
     }
 
-    if (!allowedHosts.isEmpty() && !allowedHosts.contains(host.toLowerCase(Locale.ROOT))) {
+    if (!isAllowedHost(host.toLowerCase(Locale.ROOT))) {
       throw new InventoryProcessingException("Origem do arquivo não permitida", false);
     }
 
     return uri;
+  }
+
+  // Accepts exact hosts, "*" (any host) and "*.domain.com" (any subdomain of domain.com).
+  private boolean isAllowedHost(String host) {
+    if (allowedHosts.isEmpty() || allowedHosts.contains("*") || allowedHosts.contains(host)) {
+      return true;
+    }
+
+    return allowedHosts.stream()
+        .filter(pattern -> pattern.startsWith("*."))
+        .anyMatch(pattern -> host.endsWith(pattern.substring(1)));
   }
 }

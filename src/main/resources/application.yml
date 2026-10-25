@@ -57,3 +57,6 @@ aeko:
   connect-timeout-seconds: 5
   read-timeout-seconds: 120
   authentication-key: ${INTERNAL_AUTHENTICATION_KEY}
+
+cors:
+  origin-patterns: ${CORS_ORIGIN_PATTERNS}
