@@ -1465,7 +1465,7 @@ public class InventoryServiceTests {
     FindInventoryByIdOutputDTO output = inventoryService.findMineInventoryById(input);
 
     assertEquals(1, output.emissions().size());
-    FindInventoryByIdOutputDTO.Emission outputEmission = output.emissions().getFirst();
+    FindInventoryByIdOutputDTO.Emission outputEmission = output.emissions().get(0);
     assertEquals(new BigDecimal("1.5"), outputEmission.quantityCo2e());
     assertNull(outputEmission.scope());
     assertNull(outputEmission.category());
@@ -1562,7 +1562,7 @@ public class InventoryServiceTests {
 
     // emissions
     assertEquals(1, output.emissions().size());
-    FindInventoryByIdOutputDTO.Emission emission = output.emissions().getFirst();
+    FindInventoryByIdOutputDTO.Emission emission = output.emissions().get(0);
     assertEquals(10, emission.id());
     assertEquals(new BigDecimal("32.16"), emission.quantityCo2e());
     assertEquals("Combustion of fuel in owned fleet", emission.methodologyDescription());
@@ -1584,7 +1584,7 @@ public class InventoryServiceTests {
 
     // reductions
     assertEquals(1, output.reductions().size());
-    FindInventoryByIdOutputDTO.Reduction reduction = output.reductions().getFirst();
+    FindInventoryByIdOutputDTO.Reduction reduction = output.reductions().get(0);
     assertEquals(20, reduction.id());
     assertEquals(new BigDecimal("10.5"), reduction.quantityCo2e());
     assertTrue(reduction.isReduction());
