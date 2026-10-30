@@ -21,22 +21,38 @@ public class JwtTokenFilter extends OncePerRequestFilter {
   private final HandlerExceptionResolver handlerExceptionResolver;
 
   @Override
-  public void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filter)
-      throws IOException, ServletException {
-    try{
-      String token = tokenProvider.resolveToken((HttpServletRequest) request);
+  public void doFilterInternal(
+      HttpServletRequest request,
+      HttpServletResponse response,
+      FilterChain filter
+  ) throws IOException, ServletException {
 
-      if (StringUtils.isNotBlank(token) && tokenProvider.validateToken(token)){
-        Authentication authentication = tokenProvider.getAuthentication(token);
+    try {
+      String token = tokenProvider.resolveToken(request);
 
-        if (authentication != null){
-          SecurityContextHolder.getContext().setAuthentication(authentication);
-        }
+      if (StringUtils.isBlank(token)) {
+        filter.doFilter(request, response);
+        return;
       }
 
-      filter.doFilter(request, response);
-    } catch (UnauthorizedException e) {
+      if (!tokenProvider.validateToken(token)) {
+        throw new UnauthorizedException("exception.jwt.required");
+      }
 
+      Authentication authentication =
+          tokenProvider.getAuthentication(token);
+
+      if (authentication == null) {
+        throw new UnauthorizedException("exception.access.unhautorized");
+      }
+
+      SecurityContextHolder
+          .getContext()
+          .setAuthentication(authentication);
+
+      filter.doFilter(request, response);
+
+    } catch (UnauthorizedException e) {
       handlerExceptionResolver.resolveException(
           request,
           response,

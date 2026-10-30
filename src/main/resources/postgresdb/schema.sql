@@ -27,6 +27,7 @@ CREATE TYPE INVENTORY_STATUS AS ENUM(
     'REJECTED',
     'PROCESSING',
     'PROCESSING_FAILED',
+    'INSUFFICIENT_DATA',
     'REQUESTED',
     'ISSUED'
 );
@@ -527,5 +528,147 @@ COMMENT ON FUNCTION fn_validate_employee_permission_group_enterprise() IS
 
 COMMENT ON FUNCTION fn_validate_permission_group_enterprise_change() IS
     'Prevents changing a permission group enterprise when employees from another enterprise still reference it. AUTH-FR-007.';
+
+-- Registers a validated emission and returns its identifier.
+CREATE OR REPLACE PROCEDURE sp_register_emission(
+    OUT p_emission_id integer,
+    IN p_quantity_co2e numeric,
+    IN p_id_inventory integer,
+    IN p_id_gas integer,
+    IN p_id_scope integer,
+    IN p_id_category integer DEFAULT NULL,
+    IN p_methodology_description varchar DEFAULT NULL,
+    IN p_supplier_data_percentage numeric DEFAULT NULL,
+    IN p_app_actor_id text DEFAULT NULL,
+    IN p_logical_origin text DEFAULT 'PROCEDURE'
+)
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+    IF p_app_actor_id IS NOT NULL THEN
+        PERFORM set_config('aether.app_actor_id', p_app_actor_id, true);
+    END IF;
+    PERFORM set_config('aether.logical_origin', COALESCE(p_logical_origin, 'PROCEDURE'), true);
+
+    IF p_quantity_co2e IS NULL OR p_quantity_co2e < 0 THEN
+        RAISE EXCEPTION 'quantity_co2e is required and must be non-negative'
+            USING ERRCODE = '22023';
+    END IF;
+    IF p_id_inventory IS NULL THEN
+        RAISE EXCEPTION 'id_inventory is required'
+            USING ERRCODE = '22023';
+    END IF;
+    IF p_id_gas IS NULL THEN
+        RAISE EXCEPTION 'id_gas is required'
+            USING ERRCODE = '22023';
+    END IF;
+    IF p_id_scope IS NULL THEN
+        RAISE EXCEPTION 'id_scope is required'
+            USING ERRCODE = '22023';
+    END IF;
+    IF p_supplier_data_percentage IS NOT NULL
+       AND (p_supplier_data_percentage < 0 OR p_supplier_data_percentage > 100) THEN
+        RAISE EXCEPTION 'supplier_data_percentage must be between 0 and 100'
+            USING ERRCODE = '22023';
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM inventory i WHERE i.id = p_id_inventory) THEN
+        RAISE EXCEPTION 'Inventory % not found', p_id_inventory
+            USING ERRCODE = '23503';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM gas g WHERE g.id = p_id_gas) THEN
+        RAISE EXCEPTION 'Gas % not found', p_id_gas
+            USING ERRCODE = '23503';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM scope s WHERE s.id = p_id_scope) THEN
+        RAISE EXCEPTION 'Scope % not found', p_id_scope
+            USING ERRCODE = '23503';
+    END IF;
+    IF p_id_category IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM category c WHERE c.id = p_id_category) THEN
+        RAISE EXCEPTION 'Category % not found', p_id_category
+            USING ERRCODE = '23503';
+    END IF;
+
+    INSERT INTO emission (
+        quantity_co2e,
+        methodology_description,
+        supplier_data_percentage,
+        id_gas,
+        id_scope,
+        id_category,
+        id_inventory
+    ) VALUES (
+        p_quantity_co2e,
+        p_methodology_description,
+        p_supplier_data_percentage,
+        p_id_gas,
+        p_id_scope,
+        p_id_category,
+        p_id_inventory
+    )
+    RETURNING id INTO p_emission_id;
+END;
+$$;
+
+COMMENT ON PROCEDURE sp_register_emission(integer, numeric, integer, integer, integer, integer, varchar, numeric, text, text) IS
+    'Registers an emission atomically and with audit. Validates required fields, non-negative values, and existence of inventory, gas, scope, and category when provided. A null category remains valid. OUT p_emission_id identifies the created row. Validation errors are not suppressed. ROT-FR-005, ROT-FR-007, ROT-FR-008.';
+
+-- Registers a validated reduction and returns its identifier.
+CREATE OR REPLACE PROCEDURE sp_register_reduction(
+    OUT p_reduction_id integer,
+    IN p_quantity_co2e numeric,
+    IN p_id_inventory integer,
+    IN p_id_category integer,
+    IN p_app_actor_id text DEFAULT NULL,
+    IN p_logical_origin text DEFAULT 'PROCEDURE'
+)
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+    IF p_app_actor_id IS NOT NULL THEN
+        PERFORM set_config('aether.app_actor_id', p_app_actor_id, true);
+    END IF;
+    PERFORM set_config('aether.logical_origin', COALESCE(p_logical_origin, 'PROCEDURE'), true);
+
+    IF p_quantity_co2e IS NULL OR p_quantity_co2e < 0 THEN
+        RAISE EXCEPTION 'quantity_co2e is required and must be non-negative'
+            USING ERRCODE = '22023';
+    END IF;
+    IF p_id_inventory IS NULL THEN
+        RAISE EXCEPTION 'id_inventory is required'
+            USING ERRCODE = '22023';
+    END IF;
+    IF p_id_category IS NULL THEN
+        RAISE EXCEPTION 'id_category is required to register a reduction'
+            USING ERRCODE = '22023';
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM inventory i WHERE i.id = p_id_inventory) THEN
+        RAISE EXCEPTION 'Inventory % not found', p_id_inventory
+            USING ERRCODE = '23503';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM category c WHERE c.id = p_id_category) THEN
+        RAISE EXCEPTION 'Category % not found', p_id_category
+            USING ERRCODE = '23503';
+    END IF;
+
+    INSERT INTO reduction (
+        quantity_co2e,
+        id_inventory,
+        id_category
+    ) VALUES (
+        p_quantity_co2e,
+        p_id_inventory,
+        p_id_category
+    )
+    RETURNING id INTO p_reduction_id;
+END;
+$$;
+
+COMMENT ON PROCEDURE sp_register_reduction(integer, numeric, integer, integer, text, text) IS
+    'Registers a reduction atomically and with audit. Validates non-negative quantity and existence of inventory and category. OUT p_reduction_id identifies the created row. ROT-FR-006, ROT-FR-007, ROT-FR-008.';
 
 COMMIT;

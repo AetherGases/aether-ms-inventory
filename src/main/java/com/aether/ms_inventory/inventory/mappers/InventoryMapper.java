@@ -9,9 +9,7 @@ import com.aether.ms_inventory.inventory.dto.request.RegisterInventoryRequestDTO
 import com.aether.ms_inventory.shared.AetherConstants;
 import com.aether.ms_inventory.shared.helpers.NormalizeInput;
 import com.aether.ms_inventory.shared.helpers.NormalizeOutput;
-import com.aether.ms_inventory.shared.persistence.postgres.entities.EmployeeEntity;
-import com.aether.ms_inventory.shared.persistence.postgres.entities.InventoryEntity;
-import com.aether.ms_inventory.shared.persistence.postgres.entities.StorageFileEntity;
+import com.aether.ms_inventory.shared.persistence.postgres.entities.*;
 import com.aether.ms_inventory.inventory.dto.route_params.FindInventoryByIdRouteParamsDTO;
 import java.util.List;
 
@@ -178,7 +176,13 @@ public class InventoryMapper {
             storageFile.getName(),
             NormalizeOutput.url(storageFile.getPath()),
             storageFile.getCreatedAt()
-        )
+        ),
+        inventory.getEmissions() == null ? List.of() : inventory.getEmissions().stream()
+            .map(InventoryMapper::convertEmissionToOutput)
+            .toList(),
+        inventory.getReductions() == null ? List.of() : inventory.getReductions().stream()
+            .map(InventoryMapper::convertReductionToOutput)
+            .toList()
     );
   }
 
@@ -209,7 +213,54 @@ public class InventoryMapper {
     return new FindInventoryByIdOutputDTO.Employee(
         employee.getId(),
         NormalizeOutput.name(employee.getName()),
+        NormalizeOutput.cpf(employee.getCpf()),
         employee.getStorageFile() != null ? NormalizeOutput.url(employee.getStorageFile().getPath()) : null
+    );
+  }
+
+  private static FindInventoryByIdOutputDTO.Emission convertEmissionToOutput(EmissionEntity emission){
+    ScopeEntity scope = emission.getScope();
+    GasEntity gas = emission.getGas();
+
+    return new FindInventoryByIdOutputDTO.Emission(
+        emission.getId(),
+        emission.getQuantityCo2e(),
+        NormalizeOutput.description(emission.getMethodologyDescription()),
+        emission.getSupplierDataPercentage(),
+        scope == null ? null : new FindInventoryByIdOutputDTO.Scope(
+            scope.getId(),
+            scope.getName()
+        ),
+        convertCategoryToOutput(emission.getCategory()),
+        gas == null ? null : new FindInventoryByIdOutputDTO.Gas(
+            gas.getId(),
+            gas.getName(),
+            gas.getFormula(),
+            gas.getBiogenic(),
+            gas.getGwp()
+        ),
+        false,
+        emission.getCreatedAt()
+    );
+  }
+
+  private static FindInventoryByIdOutputDTO.Reduction convertReductionToOutput(ReductionEntity reduction){
+    return new FindInventoryByIdOutputDTO.Reduction(
+        reduction.getId(),
+        reduction.getQuantityCo2e(),
+        convertCategoryToOutput(reduction.getCategory()),
+        true,
+        reduction.getCreatedAt()
+    );
+  }
+
+  private static FindInventoryByIdOutputDTO.Category convertCategoryToOutput(CategoryEntity category){
+    if (category == null) return null;
+
+    return new FindInventoryByIdOutputDTO.Category(
+        category.getId(),
+        category.getName(),
+        category.getClassification()
     );
   }
 }

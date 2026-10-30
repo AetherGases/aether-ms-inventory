@@ -6,6 +6,7 @@ public enum InventoryStatusEnum {
   REJECTED,
   PROCESSING,
   PROCESSING_FAILED,
+  INSUFFICIENT_DATA,
   REQUESTED,
   ISSUED
 }

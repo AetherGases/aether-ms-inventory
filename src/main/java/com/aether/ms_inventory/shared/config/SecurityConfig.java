@@ -3,6 +3,8 @@ package com.aether.ms_inventory.shared.config;
 import com.aether.ms_inventory.shared.security.PermissionAuthorizationManager;
 import com.aether.ms_inventory.shared.security.jwt.JwtTokenFilter;
 import com.aether.ms_inventory.shared.security.jwt.JwtTokenProvider;
+import com.aether.ms_inventory.shared.services.MessageService;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -25,6 +27,7 @@ import org.springframework.web.servlet.HandlerExceptionResolver;
 public class SecurityConfig {
   private final JwtTokenProvider tokenProvider;
   private final HandlerExceptionResolver handlerExceptionResolver;
+  private final MessageService messageService;
   public static final String SECURITY = "BearerAuth";
 
   @Bean
@@ -50,9 +53,9 @@ public class SecurityConfig {
         )
         .authorizeHttpRequests(
             authorizeHttpRequests -> authorizeHttpRequests
-                // Errors are forwarded to /error: securing it turns every 404, 400 and 403 into a 401
-                .requestMatchers("/error").permitAll()
+                .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                 .requestMatchers(
+                    "/error",
                     "/swagger-ui/**",
                     "/v3/api-docs/**"
                 ).permitAll()
@@ -63,8 +66,16 @@ public class SecurityConfig {
 
         ).exceptionHandling(exception -> exception
             .authenticationEntryPoint(
-                (request, response, authException) ->
-                    response.sendError(HttpServletResponse.SC_UNAUTHORIZED)
+                (request, response, authException) -> response.sendError(
+                    HttpServletResponse.SC_UNAUTHORIZED,
+                    messageService.getMessage("exception.access.unhautorized")
+                )
+            )
+            .accessDeniedHandler((request, response, accessDeniedException) ->
+              response.sendError(
+                  HttpServletResponse.SC_FORBIDDEN,
+                  messageService.getMessage("exception.access.forbidden")
+              )
             )
         )
         .cors(cors -> {})

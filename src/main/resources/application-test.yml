@@ -59,3 +59,14 @@ cloudinary:
   cloud_name: test-cloud
   api_key: test-api-key
   api_secret: test-api-secret
+
+inventory:
+  worker:
+    enabled: false
+
+aeko:
+  base-url: http://localhost:8000
+  authentication-key: test-authentication-key
+
+cors:
+  origin-patterns: http://localhost:8080

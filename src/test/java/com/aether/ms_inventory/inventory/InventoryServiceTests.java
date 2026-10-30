@@ -3,13 +3,11 @@ package com.aether.ms_inventory.inventory;
 import com.aether.ms_inventory.inventory.dto.input.*;
 import com.aether.ms_inventory.inventory.dto.output.*;
 import com.aether.ms_inventory.inventory.services.InventoryService;
+import com.aether.ms_inventory.shared.enums.CategoryClassificationEnum;
 import com.aether.ms_inventory.shared.enums.InventoryStatusEnum;
 import com.aether.ms_inventory.shared.enums.InventoryTypeEnum;
 import com.aether.ms_inventory.shared.exceptions.NotFoundException;
-import com.aether.ms_inventory.shared.persistence.postgres.entities.DepartmentEntity;
-import com.aether.ms_inventory.shared.persistence.postgres.entities.EmployeeEntity;
-import com.aether.ms_inventory.shared.persistence.postgres.entities.InventoryEntity;
-import com.aether.ms_inventory.shared.persistence.postgres.entities.StorageFileEntity;
+import com.aether.ms_inventory.shared.persistence.postgres.entities.*;
 import com.aether.ms_inventory.shared.persistence.postgres.repositories.InventoryRepository;
 import com.aether.ms_inventory.shared.persistence.postgres.repositories.StorageFileRepository;
 import com.aether.ms_inventory.shared.persistence.redis.entities.InputInventoryDocument;
@@ -26,6 +24,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -1283,20 +1282,14 @@ public class InventoryServiceTests {
 
     FindInventoryByIdInputDTO input = new FindInventoryByIdInputDTO(inventoryId, userId);
 
-    InventoryEntity inventory = new InventoryEntity();
-    inventory.setId(inventoryId);
-    inventory.setName("Inventário Teste");
-    inventory.setStatus(InventoryStatusEnum.UNDER_REVIEW);
-    inventory.setType(InventoryTypeEnum.INPUT);
+    InventoryEntity inventory = buildDetailedInventory(inventoryId, InventoryStatusEnum.APPROVED);
 
     when(inventoryRepository.findByIdAndOwnerEmployeeId(inventoryId, userId))
         .thenReturn(Optional.of(inventory));
 
     FindInventoryByIdOutputDTO output = inventoryService.findMineInventoryById(input);
 
-    assertEquals(inventoryId, output.id());
-    assertEquals("Inventário Teste", output.name());
-    assertEquals(InventoryStatusEnum.UNDER_REVIEW, output.status());
+    assertCompleteInventoryDetails(output, inventoryId, InventoryStatusEnum.APPROVED);
 
     verify(inventoryRepository).findByIdAndOwnerEmployeeId(inventoryId, userId);
     verifyNoInteractions(getUserInfosService);
@@ -1356,11 +1349,7 @@ public class InventoryServiceTests {
     DepartmentEntity department = new DepartmentEntity();
     department.setId(departmentId);
 
-    InventoryEntity inventory = new InventoryEntity();
-    inventory.setId(inventoryId);
-    inventory.setName("Inventário Teste");
-    inventory.setStatus(InventoryStatusEnum.APPROVED);
-    inventory.setType(InventoryTypeEnum.INPUT);
+    InventoryEntity inventory = buildDetailedInventory(inventoryId, InventoryStatusEnum.APPROVED);
 
     when(getUserInfosService.getDepartment(userId))
         .thenReturn(department);
@@ -1370,9 +1359,7 @@ public class InventoryServiceTests {
 
     FindInventoryByIdOutputDTO output = inventoryService.findReviewedInventoryById(input);
 
-    assertEquals(inventoryId, output.id());
-    assertEquals("Inventário Teste", output.name());
-    assertEquals(InventoryStatusEnum.APPROVED, output.status());
+    assertCompleteInventoryDetails(output, inventoryId, InventoryStatusEnum.APPROVED);
 
     verify(getUserInfosService).getDepartment(userId);
     verify(inventoryRepository).findByIdAndDepartmentId(inventoryId, departmentId);
@@ -1420,6 +1407,191 @@ public class InventoryServiceTests {
     );
 
     verifyNoInteractions(inventoryRepository);
+  }
+
+  @Test
+  @DisplayName("Should return empty emissions and reductions and no validator when the reviewed inventory has none")
+  void findReviewedInventoryByIdWithoutEmissionsReductionsOrValidator() {
+    Integer inventoryId = 5;
+    Integer userId = 1;
+    Integer departmentId = 10;
+
+    FindInventoryByIdInputDTO input = new FindInventoryByIdInputDTO(inventoryId, userId);
+
+    DepartmentEntity department = new DepartmentEntity();
+    department.setId(departmentId);
+
+    InventoryEntity inventory = new InventoryEntity();
+    inventory.setId(inventoryId);
+    inventory.setName("Inventário Teste");
+    inventory.setStatus(InventoryStatusEnum.UNDER_REVIEW);
+    inventory.setType(InventoryTypeEnum.INPUT);
+
+    when(getUserInfosService.getDepartment(userId))
+        .thenReturn(department);
+
+    when(inventoryRepository.findByIdAndDepartmentId(inventoryId, departmentId))
+        .thenReturn(Optional.of(inventory));
+
+    FindInventoryByIdOutputDTO output = inventoryService.findReviewedInventoryById(input);
+
+    assertNull(output.validator());
+    assertTrue(output.emissions().isEmpty());
+    assertTrue(output.reductions().isEmpty());
+  }
+
+  @Test
+  @DisplayName("Should return null nested data when an emission has no scope, category or gas")
+  void findMineInventoryByIdWithEmissionMissingRelations() {
+    Integer inventoryId = 5;
+    Integer userId = 1;
+
+    FindInventoryByIdInputDTO input = new FindInventoryByIdInputDTO(inventoryId, userId);
+
+    EmissionEntity emission = new EmissionEntity();
+    emission.setQuantityCo2e(new BigDecimal("1.5"));
+
+    InventoryEntity inventory = new InventoryEntity();
+    inventory.setId(inventoryId);
+    inventory.setName("Inventário Teste");
+    inventory.setStatus(InventoryStatusEnum.UNDER_REVIEW);
+    inventory.setType(InventoryTypeEnum.INPUT);
+    inventory.setEmissions(List.of(emission));
+    inventory.setReductions(List.of());
+
+    when(inventoryRepository.findByIdAndOwnerEmployeeId(inventoryId, userId))
+        .thenReturn(Optional.of(inventory));
+
+    FindInventoryByIdOutputDTO output = inventoryService.findMineInventoryById(input);
+
+    assertEquals(1, output.emissions().size());
+    FindInventoryByIdOutputDTO.Emission outputEmission = output.emissions().get(0);
+    assertEquals(new BigDecimal("1.5"), outputEmission.quantityCo2e());
+    assertNull(outputEmission.scope());
+    assertNull(outputEmission.category());
+    assertNull(outputEmission.gas());
+    assertFalse(outputEmission.isReduction());
+  }
+
+  private InventoryEntity buildDetailedInventory(Integer inventoryId, InventoryStatusEnum status) {
+    EmployeeEntity owner = new EmployeeEntity();
+    owner.setId(1);
+    owner.setName("autor teste");
+    owner.setCpf("12345678912");
+
+    EmployeeEntity validator = new EmployeeEntity();
+    validator.setId(2);
+    validator.setName("validador teste");
+    validator.setCpf("52998224725");
+
+    ScopeEntity scope = new ScopeEntity();
+    scope.setId(1);
+    scope.setName("Escopo 1");
+
+    CategoryEntity emissionCategory = new CategoryEntity();
+    emissionCategory.setId(2);
+    emissionCategory.setName("Combustão móvel");
+    emissionCategory.setClassification(CategoryClassificationEnum.UPSTREAM);
+
+    CategoryEntity reductionCategory = new CategoryEntity();
+    reductionCategory.setId(3);
+    reductionCategory.setName("Resíduos");
+    reductionCategory.setClassification(CategoryClassificationEnum.DOWNSTREAM);
+
+    GasEntity gas = new GasEntity();
+    gas.setId(4);
+    gas.setName("Metano");
+    gas.setFormula("CH4");
+    gas.setBiogenic(false);
+    gas.setGwp(new BigDecimal("28"));
+
+    EmissionEntity emission = new EmissionEntity();
+    emission.setId(10);
+    emission.setQuantityCo2e(new BigDecimal("32.16"));
+    emission.setMethodologyDescription("Combustion of fuel in owned fleet");
+    emission.setSupplierDataPercentage(new BigDecimal("40"));
+    emission.setScope(scope);
+    emission.setCategory(emissionCategory);
+    emission.setGas(gas);
+
+    ReductionEntity reduction = new ReductionEntity();
+    reduction.setId(20);
+    reduction.setQuantityCo2e(new BigDecimal("10.5"));
+    reduction.setCategory(reductionCategory);
+
+    InventoryEntity inventory = new InventoryEntity();
+    inventory.setId(inventoryId);
+    inventory.setName("inventário teste");
+    inventory.setDescription("Inventário anual de emissões");
+    inventory.setConsolidationApproach("Controle operacional");
+    inventory.setInventoryPeriodStart(LocalDate.of(2025, 1, 1));
+    inventory.setInventoryPeriodEnd(LocalDate.of(2025, 12, 31));
+    inventory.setStatusMessage("Inventário validado");
+    inventory.setStatus(status);
+    inventory.setType(InventoryTypeEnum.INPUT);
+    inventory.setOwnerEmployee(owner);
+    inventory.setValidatorEmployee(validator);
+    inventory.setEmissions(List.of(emission));
+    inventory.setReductions(List.of(reduction));
+
+    return inventory;
+  }
+
+  private void assertCompleteInventoryDetails(
+      FindInventoryByIdOutputDTO output,
+      Integer inventoryId,
+      InventoryStatusEnum status
+  ) {
+    // general information
+    assertEquals(inventoryId, output.id());
+    assertEquals("Inventário Teste", output.name());
+    assertEquals("Inventário anual de emissões", output.description());
+    assertEquals("Controle operacional", output.consolidationApproach());
+    assertEquals(LocalDate.of(2025, 1, 1), output.inventoryPeriodStart());
+    assertEquals(LocalDate.of(2025, 12, 31), output.inventoryPeriodEnd());
+    assertEquals(InventoryTypeEnum.INPUT, output.type());
+    assertEquals(status, output.status());
+    assertEquals("Inventário validado", output.validationMessage());
+    assertEquals(1, output.owner().id());
+    assertEquals("Autor Teste", output.owner().name());
+
+    // validator
+    assertEquals(2, output.validator().id());
+    assertEquals("Validador Teste", output.validator().name());
+    assertEquals("529.982.247-25", output.validator().cpf());
+
+    // emissions
+    assertEquals(1, output.emissions().size());
+    FindInventoryByIdOutputDTO.Emission emission = output.emissions().get(0);
+    assertEquals(10, emission.id());
+    assertEquals(new BigDecimal("32.16"), emission.quantityCo2e());
+    assertEquals("Combustion of fuel in owned fleet", emission.methodologyDescription());
+    assertEquals(new BigDecimal("40"), emission.supplierDataPercentage());
+    assertFalse(emission.isReduction());
+
+    // emission categorization
+    assertEquals(new FindInventoryByIdOutputDTO.Scope(1, "Escopo 1"), emission.scope());
+    assertEquals(
+        new FindInventoryByIdOutputDTO.Category(2, "Combustão móvel", CategoryClassificationEnum.UPSTREAM),
+        emission.category()
+    );
+
+    // gas
+    assertEquals(
+        new FindInventoryByIdOutputDTO.Gas(4, "Metano", "CH4", false, new BigDecimal("28")),
+        emission.gas()
+    );
+
+    // reductions
+    assertEquals(1, output.reductions().size());
+    FindInventoryByIdOutputDTO.Reduction reduction = output.reductions().get(0);
+    assertEquals(20, reduction.id());
+    assertEquals(new BigDecimal("10.5"), reduction.quantityCo2e());
+    assertTrue(reduction.isReduction());
+    assertEquals(
+        new FindInventoryByIdOutputDTO.Category(3, "Resíduos", CategoryClassificationEnum.DOWNSTREAM),
+        reduction.category()
+    );
   }
 
   // ---------------------------------------------------------------------------
