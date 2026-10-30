@@ -1,5 +1,6 @@
 package com.aether.ms_inventory.inventory;
 
+import com.aether.ms_inventory.shared.enums.CategoryClassificationEnum;
 import com.aether.ms_inventory.shared.enums.EmployeeStatusEnum;
 import com.aether.ms_inventory.shared.enums.InventoryStatusEnum;
 import com.aether.ms_inventory.shared.enums.InventoryTypeEnum;
@@ -18,8 +19,10 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.ResultActions;
 import com.aether.ms_inventory.shared.persistence.redis.entities.InputInventoryDocument;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -47,6 +50,13 @@ class InventoryControllerTests {
   private static final String PERMISSION_NAME = "Relatórios";
   private static final String DEPARTMENT_NAME = "test depto";
   private static final String OTHER_DEPARTMENT_NAME = "test depto outro";
+  private static final String SCOPE_NAME = "Escopo Teste Inventário";
+  private static final String EMISSION_CATEGORY_NAME = "Categoria Teste Emissão Inventário";
+  private static final String REDUCTION_CATEGORY_NAME = "Categoria Teste Redução Inventário";
+  private static final String GAS_NAME = "Gás Teste Inventário";
+  private static final String GAS_FORMULA = "TESTGAS-INVENTORY";
+  private static final String EMPLOYEE_ACTIVE_CPF = "12345678912";
+  private static final String EMPLOYEE_OTHER_CPF = "52998224725";
 
   @Autowired
   private MockMvc mockMvc;
@@ -78,14 +88,27 @@ class InventoryControllerTests {
   private PermissionGroupRepository permissionGroupRepository;
 
   @Autowired
-  private JwtTokenProvider jwtTokenProvider;
-
-  @Autowired
   private EmissionRepository emissionRepository;
 
   @Autowired
   private ReductionRepository reductionRepository;
 
+  @Autowired
+  private GasRepository gasRepository;
+
+  @Autowired
+  private ScopeRepository scopeRepository;
+
+  @Autowired
+  private CategoryRepository categoryRepository;
+
+  @Autowired
+  private JwtTokenProvider jwtTokenProvider;
+
+  private GasEntity gas;
+  private ScopeEntity scope;
+  private CategoryEntity emissionCategory;
+  private CategoryEntity reductionCategory;
   private PermissionGroupEntity permissionGroup;
   private EnterpriseEntity enterprise;
   private UnitEntity unit;
@@ -140,7 +163,7 @@ class InventoryControllerTests {
     permissionGroupRepository.save(permissionGroup);
 
     employeeActive = new EmployeeEntity(
-        "12345678912",
+        EMPLOYEE_ACTIVE_CPF,
         "Teste",
         EMPLOYEE_ACTIVE_EMAIL,
         "senhaHash",
@@ -153,7 +176,7 @@ class InventoryControllerTests {
     employeeActive = employeeRepository.save(employeeActive);
 
     employeeOther = new EmployeeEntity(
-        "52998224725",
+        EMPLOYEE_OTHER_CPF,
         "Outro Teste",
         EMPLOYEE_OTHER_EMAIL,
         "senhaHash",
@@ -164,6 +187,27 @@ class InventoryControllerTests {
     );
 
     employeeOther = employeeRepository.save(employeeOther);
+
+    scope = new ScopeEntity();
+    scope.setName(SCOPE_NAME);
+    scope = scopeRepository.save(scope);
+
+    emissionCategory = new CategoryEntity();
+    emissionCategory.setName(EMISSION_CATEGORY_NAME);
+    emissionCategory.setClassification(CategoryClassificationEnum.UPSTREAM);
+    emissionCategory = categoryRepository.save(emissionCategory);
+
+    reductionCategory = new CategoryEntity();
+    reductionCategory.setName(REDUCTION_CATEGORY_NAME);
+    reductionCategory.setClassification(CategoryClassificationEnum.DOWNSTREAM);
+    reductionCategory = categoryRepository.save(reductionCategory);
+
+    gas = new GasEntity();
+    gas.setName(GAS_NAME);
+    gas.setFormula(GAS_FORMULA);
+    gas.setBiogenic(false);
+    gas.setGwp(new BigDecimal("28"));
+    gas = gasRepository.save(gas);
   }
   private void cleanupLeftoverTestData() {
 
@@ -198,6 +242,21 @@ class InventoryControllerTests {
       storageFileRepository.deleteAllByIdInBatch(leftoverFileIds);
     }
 
+    gasRepository.findAll().stream()
+        .filter(g -> GAS_FORMULA.equals(g.getFormula()))
+        .map(GasEntity::getId)
+        .forEach(gasRepository::deleteById);
+
+    scopeRepository.findAll().stream()
+        .filter(s -> SCOPE_NAME.equals(s.getName()))
+        .map(ScopeEntity::getId)
+        .forEach(scopeRepository::deleteById);
+
+    categoryRepository.findAll().stream()
+        .filter(c -> EMISSION_CATEGORY_NAME.equals(c.getName()) || REDUCTION_CATEGORY_NAME.equals(c.getName()))
+        .map(CategoryEntity::getId)
+        .forEach(categoryRepository::deleteById);
+
     if (!leftoverEmployeeIds.isEmpty()) {
       employeeRepository.deleteAllByIdInBatch(leftoverEmployeeIds);
     }
@@ -230,6 +289,22 @@ class InventoryControllerTests {
 
   @AfterAll()
   void afterAll() {
+
+    if (gas != null && gas.getId() != null) {
+      gasRepository.deleteById(gas.getId());
+    }
+
+    if (scope != null && scope.getId() != null) {
+      scopeRepository.deleteById(scope.getId());
+    }
+
+    if (emissionCategory != null && emissionCategory.getId() != null) {
+      categoryRepository.deleteById(emissionCategory.getId());
+    }
+
+    if (reductionCategory != null && reductionCategory.getId() != null) {
+      categoryRepository.deleteById(reductionCategory.getId());
+    }
 
     if (employeeOther != null && employeeOther.getId() != null) {
       employeeRepository.deleteById(employeeOther.getId());
@@ -389,6 +464,100 @@ class InventoryControllerTests {
     inventoriesIds.add(inventory.getId());
 
     return inventory;
+  }
+
+  private InventoryEntity createDetailedInventory(
+      String name,
+      EmployeeEntity owner,
+      EmployeeEntity validator,
+      InventoryStatusEnum status
+  ) {
+    InventoryEntity inventory = new InventoryEntity();
+
+    inventory.setName(name);
+    inventory.setDescription("Inventário anual de emissões");
+    inventory.setConsolidationApproach("Controle operacional");
+    inventory.setInventoryPeriodStart(LocalDate.of(2025, 1, 1));
+    inventory.setInventoryPeriodEnd(LocalDate.of(2025, 12, 31));
+    inventory.setStatusMessage("Inventário validado");
+    inventory.setDepartment(department);
+    inventory.setOwnerEmployee(owner);
+    inventory.setValidatorEmployee(validator);
+    inventory.setStatus(status);
+    inventory.setType(InventoryTypeEnum.INPUT);
+
+    inventoryRepository.save(inventory);
+
+    inventoriesIds.add(inventory.getId());
+
+    EmissionEntity emission = new EmissionEntity();
+    emission.setQuantityCo2e(new BigDecimal("32.16"));
+    emission.setMethodologyDescription("Combustion of fuel in owned fleet");
+    emission.setSupplierDataPercentage(new BigDecimal("40"));
+    emission.setScope(scope);
+    emission.setCategory(emissionCategory);
+    emission.setGas(gas);
+    emission.setInventory(inventory);
+    emissionRepository.save(emission);
+
+    ReductionEntity reduction = new ReductionEntity();
+    reduction.setQuantityCo2e(new BigDecimal("10.5"));
+    reduction.setCategory(reductionCategory);
+    reduction.setInventory(inventory);
+    reductionRepository.save(reduction);
+
+    return inventory;
+  }
+
+  private void expectCompleteInventoryDetails(
+      ResultActions result,
+      InventoryEntity inventory,
+      EmployeeEntity owner,
+      EmployeeEntity validator,
+      String formattedValidatorCpf
+  ) throws Exception {
+    result
+        // general information
+        .andExpect(jsonPath("$.id").value(inventory.getId()))
+        .andExpect(jsonPath("$.name").value(inventory.getName()))
+        .andExpect(jsonPath("$.description").value("Inventário anual de emissões"))
+        .andExpect(jsonPath("$.consolidationApproach").value("Controle operacional"))
+        .andExpect(jsonPath("$.inventoryPeriodStart").value("2025-01-01"))
+        .andExpect(jsonPath("$.inventoryPeriodEnd").value("2025-12-31"))
+        .andExpect(jsonPath("$.type").value(InventoryTypeEnum.INPUT.name()))
+        .andExpect(jsonPath("$.status").value(inventory.getStatus().name()))
+        .andExpect(jsonPath("$.validationMessage").value("Inventário validado"))
+        .andExpect(jsonPath("$.owner.id").value(owner.getId()))
+        .andExpect(jsonPath("$.owner.name").value(owner.getName()))
+        // validator
+        .andExpect(jsonPath("$.validator.id").value(validator.getId()))
+        .andExpect(jsonPath("$.validator.name").value(validator.getName()))
+        .andExpect(jsonPath("$.validator.cpf").value(formattedValidatorCpf))
+        // emissions
+        .andExpect(jsonPath("$.emissions.length()").value(1))
+        .andExpect(jsonPath("$.emissions[0].quantityCo2e").value(32.16))
+        .andExpect(jsonPath("$.emissions[0].methodologyDescription").value("Combustion of fuel in owned fleet"))
+        .andExpect(jsonPath("$.emissions[0].supplierDataPercentage").value(40))
+        .andExpect(jsonPath("$.emissions[0].isReduction").value(false))
+        // emission categorization
+        .andExpect(jsonPath("$.emissions[0].scope.id").value(scope.getId()))
+        .andExpect(jsonPath("$.emissions[0].scope.name").value(SCOPE_NAME))
+        .andExpect(jsonPath("$.emissions[0].category.id").value(emissionCategory.getId()))
+        .andExpect(jsonPath("$.emissions[0].category.name").value(EMISSION_CATEGORY_NAME))
+        .andExpect(jsonPath("$.emissions[0].category.classification").value(CategoryClassificationEnum.UPSTREAM.name()))
+        // gas
+        .andExpect(jsonPath("$.emissions[0].gas.id").value(gas.getId()))
+        .andExpect(jsonPath("$.emissions[0].gas.name").value(GAS_NAME))
+        .andExpect(jsonPath("$.emissions[0].gas.formula").value(GAS_FORMULA))
+        .andExpect(jsonPath("$.emissions[0].gas.biogenic").value(false))
+        .andExpect(jsonPath("$.emissions[0].gas.gwp").value(28))
+        // reductions
+        .andExpect(jsonPath("$.reductions.length()").value(1))
+        .andExpect(jsonPath("$.reductions[0].quantityCo2e").value(10.5))
+        .andExpect(jsonPath("$.reductions[0].isReduction").value(true))
+        .andExpect(jsonPath("$.reductions[0].category.id").value(reductionCategory.getId()))
+        .andExpect(jsonPath("$.reductions[0].category.name").value(REDUCTION_CATEGORY_NAME))
+        .andExpect(jsonPath("$.reductions[0].category.classification").value(CategoryClassificationEnum.DOWNSTREAM.name()));
   }
 
   private String rejectBody(String message) {
@@ -1649,8 +1818,30 @@ class InventoryControllerTests {
   // ---------------------------------------------------------------------------
 
   @Test
-  @DisplayName("Should return 200 and the inventory details owned by the user")
+  @DisplayName("Should return 200 and the complete inventory details owned by the user")
   void findMineInventoryByIdSuccess() throws Exception {
+
+    InventoryEntity inventory = createDetailedInventory(
+        "Inventário Meu Detalhado",
+        employeeActive,
+        employeeOther,
+        InventoryStatusEnum.APPROVED
+    );
+
+    String token = generateJwt(employeeActive);
+
+    ResultActions result = mockMvc.perform(
+            get("/api/inventories/mine/{id}", inventory.getId())
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk());
+
+    expectCompleteInventoryDetails(result, inventory, employeeActive, employeeOther, "529.982.247-25");
+  }
+
+  @Test
+  @DisplayName("Should return empty emissions and reductions and no validator when the inventory has none")
+  void findMineInventoryByIdWithoutEmissionsReductionsOrValidator() throws Exception {
 
     InventoryEntity inventory = createInventory("Inventário Meu");
 
@@ -1663,7 +1854,11 @@ class InventoryControllerTests {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id").value(inventory.getId()))
         .andExpect(jsonPath("$.name").value("Inventário Meu"))
-        .andExpect(jsonPath("$.status").value(InventoryStatusEnum.UNDER_REVIEW.name()));
+        .andExpect(jsonPath("$.status").value(InventoryStatusEnum.UNDER_REVIEW.name()))
+        .andExpect(jsonPath("$.owner.id").value(employeeActive.getId()))
+        .andExpect(jsonPath("$.validator").doesNotExist())
+        .andExpect(jsonPath("$.emissions").isEmpty())
+        .andExpect(jsonPath("$.reductions").isEmpty());
   }
 
   @Test
@@ -1683,7 +1878,12 @@ class InventoryControllerTests {
   @DisplayName("Should return 404 when the inventory belongs to another employee")
   void findMineInventoryByIdFromAnotherEmployee() throws Exception {
 
-    InventoryEntity inventory = createInventory("Inventário De Outro", employeeOther);
+    InventoryEntity inventory = createDetailedInventory(
+        "Inventário De Outro",
+        employeeOther,
+        employeeActive,
+        InventoryStatusEnum.APPROVED
+    );
 
     String token = generateJwt(employeeActive);
 
@@ -1750,14 +1950,36 @@ class InventoryControllerTests {
   // ---------------------------------------------------------------------------
 
   @Test
-  @DisplayName("Should return 200 and the inventory details from the department")
+  @DisplayName("Should return 200 and the complete inventory details from the department")
   void findReviewedInventoryByIdSuccess() throws Exception {
 
-    InventoryEntity inventory = createInventory(
+    InventoryEntity inventory = createDetailedInventory(
         "Inventário Aprovado",
         employeeOther,
-        department,
+        employeeActive,
         InventoryStatusEnum.APPROVED
+    );
+
+    String token = generateJwt(employeeActive);
+
+    ResultActions result = mockMvc.perform(
+            get("/api/inventories/reviewed/{id}", inventory.getId())
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk());
+
+    expectCompleteInventoryDetails(result, inventory, employeeOther, employeeActive, "123.456.789-12");
+  }
+
+  @Test
+  @DisplayName("Should return empty emissions and reductions and no validator when the inventory has none")
+  void findReviewedInventoryByIdWithoutEmissionsReductionsOrValidator() throws Exception {
+
+    InventoryEntity inventory = createInventory(
+        "Inventário Pendente Sem Dados",
+        employeeOther,
+        department,
+        InventoryStatusEnum.UNDER_REVIEW
     );
 
     String token = generateJwt(employeeActive);
@@ -1768,29 +1990,33 @@ class InventoryControllerTests {
         )
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id").value(inventory.getId()))
-        .andExpect(jsonPath("$.name").value("Inventário Aprovado"))
-        .andExpect(jsonPath("$.status").value(InventoryStatusEnum.APPROVED.name()));
+        .andExpect(jsonPath("$.status").value(InventoryStatusEnum.UNDER_REVIEW.name()))
+        .andExpect(jsonPath("$.owner.id").value(employeeOther.getId()))
+        .andExpect(jsonPath("$.validator").doesNotExist())
+        .andExpect(jsonPath("$.emissions").isEmpty())
+        .andExpect(jsonPath("$.reductions").isEmpty());
   }
 
   @Test
   @DisplayName("Should return 200 for an inventory owned by the requesting user")
   void findReviewedInventoryByIdOwnedByRequester() throws Exception {
 
-    InventoryEntity inventory = createInventory(
+    InventoryEntity inventory = createDetailedInventory(
         "Inventário Meu Aprovado",
         employeeActive,
-        department,
+        employeeOther,
         InventoryStatusEnum.APPROVED
     );
 
     String token = generateJwt(employeeActive);
 
-    mockMvc.perform(
+    ResultActions result = mockMvc.perform(
             get("/api/inventories/reviewed/{id}", inventory.getId())
                 .header("Authorization", "Bearer " + token)
         )
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.id").value(inventory.getId()));
+        .andExpect(status().isOk());
+
+    expectCompleteInventoryDetails(result, inventory, employeeActive, employeeOther, "529.982.247-25");
   }
 
   @Test
@@ -1810,12 +2036,14 @@ class InventoryControllerTests {
   @DisplayName("Should return 404 when the inventory belongs to another department")
   void findReviewedInventoryByIdFromAnotherDepartment() throws Exception {
 
-    InventoryEntity inventory = createInventory(
+    InventoryEntity inventory = createDetailedInventory(
         "Inventário Outro Depto",
         employeeOther,
-        otherDepartment,
+        employeeActive,
         InventoryStatusEnum.APPROVED
     );
+    inventory.setDepartment(otherDepartment);
+    inventoryRepository.save(inventory);
 
     String token = generateJwt(employeeActive);
 

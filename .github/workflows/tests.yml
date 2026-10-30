@@ -28,19 +28,6 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
-      mongo:
-        image: mongo:8.0.13
-        env:
-          MONGO_INITDB_ROOT_USERNAME: ${{ secrets.CI_MONGO_USER }}
-          MONGO_INITDB_ROOT_PASSWORD: ${{ secrets.CI_MONGO_PASSWORD }}
-        ports:
-          - 27017:27017
-        options: >-
-          --health-cmd "mongosh --eval 'db.runCommand({ ping: 1 })'"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
       redis:
         image: redis:8.2
         ports:
@@ -80,7 +67,6 @@ jobs:
           POSTGRES_DB: ${{ secrets.CI_POSTGRES_DB }}
           POSTGRES_USER: ${{ secrets.CI_POSTGRES_USER }}
           POSTGRES_PASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD }}
-          MONGO_URL: ${{ secrets.CI_MONGO_URL }}
           REDIS_HOST: localhost
           REDIS_PORT: 6379
           REDIS_PASSWORD: ci_redis_password

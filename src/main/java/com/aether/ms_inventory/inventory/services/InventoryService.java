@@ -260,9 +260,13 @@ public class InventoryService {
     DepartmentEntity department = getUserInfosService.getDepartment(input.userId());
     Integer enterpriseId = department.getUnit().getEnterprise().getId();
 
+    BigDecimal totalReductions = roundToTwoDecimals(reductionRepository.sumQuantityCo2eByEnterpriseId(enterpriseId));
+    BigDecimal totalEmissions = roundToTwoDecimals(emissionRepository.sumQuantityCo2eByEnterpriseId(enterpriseId));
+
     return new FindEnterpriseInfoOutputDTO(
-        roundToTwoDecimals(reductionRepository.sumQuantityCo2eByEnterpriseId(enterpriseId)),
-        roundToTwoDecimals(emissionRepository.sumQuantityCo2eByEnterpriseId(enterpriseId))
+        totalReductions,
+        totalEmissions,
+        calculateReducedPercentage(totalReductions, totalEmissions)
     );
   }
 

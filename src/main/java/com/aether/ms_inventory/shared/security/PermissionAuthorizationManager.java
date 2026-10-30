@@ -1,9 +1,10 @@
 package com.aether.ms_inventory.shared.security;
 
-import com.aether.ms_inventory.shared.persistence.postgres.entities.PermissionEntity;
+import com.aether.ms_inventory.shared.helpers.CustomUserDetails;
 import com.aether.ms_inventory.shared.persistence.postgres.repositories.PermissionRepository;
 import lombok.RequiredArgsConstructor;
-import org.jspecify.annotations.Nullable;
+import org.springframework.security.authentication.AuthenticationTrustResolver;
+import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
 import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.authorization.AuthorizationManager;
 import org.springframework.security.authorization.AuthorizationResult;
@@ -18,41 +19,31 @@ import java.util.function.Supplier;
 public class PermissionAuthorizationManager
     implements AuthorizationManager<RequestAuthorizationContext> {
   private final PermissionRepository permissionRepository;
+  private final AuthenticationTrustResolver trustResolver = new AuthenticationTrustResolverImpl();
 
   @Override
   public AuthorizationResult authorize(
       Supplier<? extends Authentication> authentication,
       RequestAuthorizationContext context
   ) {
-
     Authentication auth = authentication.get();
 
-    if (auth == null || !auth.isAuthenticated()) {
+    if (!trustResolver.isAuthenticated(auth)
+        || !(auth.getPrincipal() instanceof CustomUserDetails user)) {
       return new AuthorizationDecision(false);
     }
 
     String requestUrl = context.getRequest().getRequestURI();
 
-    boolean hasPermission = auth.getAuthorities()
-        .stream()
-        .anyMatch(authority ->
-            permissionMatches(
-                authority.getAuthority(),
-                requestUrl
-            )
-        );
-
-    return new AuthorizationDecision(hasPermission);
+    return new AuthorizationDecision(permissionMatches(user.getId(), requestUrl));
   }
 
   private boolean permissionMatches(
-      String permissionName,
+      Integer employeeId,
       String requestUrl
   ) {
-    PermissionEntity permission = permissionRepository.findByNameIgnoreCase(permissionName);
-
-    if (permission != null && requestUrl.matches(permission.getPattern())) return true;
-
-    return false;
+    return permissionRepository.findAllByEmployeeId(employeeId)
+        .stream()
+        .anyMatch(permission -> requestUrl.matches(permission.getPattern()));
   }
 }

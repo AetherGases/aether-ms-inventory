@@ -23,4 +23,25 @@ public interface ReductionRepository extends JpaRepository<ReductionEntity, Inte
       WHERE r.inventory.department.unit.id = :unitId
       """)
   BigDecimal sumQuantityCo2eByUnitId(@Param("unitId") Integer unitId);
+
+  @Query(
+      value = """
+          CALL sp_register_reduction(
+              CAST(NULL AS integer),
+              CAST(:quantityCo2e AS numeric),
+              CAST(:idInventory AS integer),
+              CAST(:idCategory AS integer),
+              CAST(:appActorId AS text),
+              CAST(:logicalOrigin AS text)
+          )
+          """,
+      nativeQuery = true
+  )
+  Integer registerReduction(
+      @Param("quantityCo2e") BigDecimal quantityCo2e,
+      @Param("idInventory") Integer idInventory,
+      @Param("idCategory") Integer idCategory,
+      @Param("appActorId") String appActorId,
+      @Param("logicalOrigin") String logicalOrigin
+  );
 }

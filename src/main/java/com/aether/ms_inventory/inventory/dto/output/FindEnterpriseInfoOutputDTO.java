@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 
 public record FindEnterpriseInfoOutputDTO(
     BigDecimal totalReductions,
-    BigDecimal totalEmissions
+    BigDecimal totalEmissions,
+    BigDecimal reductionPercentage
 ) {
 }

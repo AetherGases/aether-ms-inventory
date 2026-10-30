@@ -19,6 +19,7 @@
 		<bouncy-castle.version>1.83</bouncy-castle.version>
 		<jedis.version>8.0.0</jedis.version>
 		<cloudinary.version>2.4.0</cloudinary.version>
+		<poi.version>5.4.1</poi.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -131,6 +132,12 @@
 			<groupId>com.cloudinary</groupId>
 			<artifactId>cloudinary-http5</artifactId>
 			<version>${cloudinary.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.apache.poi</groupId>
+			<artifactId>poi-ooxml</artifactId>
+			<version>${poi.version}</version>
 		</dependency>
 	</dependencies>
 
