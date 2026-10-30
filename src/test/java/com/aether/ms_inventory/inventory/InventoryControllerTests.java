@@ -19,6 +19,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import com.aether.ms_inventory.shared.persistence.redis.entities.InputInventoryDocument;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -79,6 +80,12 @@ class InventoryControllerTests {
   @Autowired
   private JwtTokenProvider jwtTokenProvider;
 
+  @Autowired
+  private EmissionRepository emissionRepository;
+
+  @Autowired
+  private ReductionRepository reductionRepository;
+
   private PermissionGroupEntity permissionGroup;
   private EnterpriseEntity enterprise;
   private UnitEntity unit;
@@ -90,6 +97,8 @@ class InventoryControllerTests {
   private PermissionEntity permission;
   private final List<Integer> inventoriesIds = new ArrayList<>();
   private final List<Integer> storageFileIds = new ArrayList<>();
+  private final List<Integer> emissionIds = new ArrayList<>();
+  private final List<Integer> reductionIds = new ArrayList<>();
 
   @BeforeAll
   void beforeAll() {
@@ -257,6 +266,16 @@ class InventoryControllerTests {
 
   @AfterEach
   void cleanup() {
+    if (!emissionIds.isEmpty()) {
+      emissionRepository.deleteAllByIdInBatch(emissionIds);
+      emissionIds.clear();
+    }
+
+    if (!reductionIds.isEmpty()) {
+      reductionRepository.deleteAllByIdInBatch(reductionIds);
+      reductionIds.clear();
+    }
+
     if (!inventoriesIds.isEmpty()) {
       inventoriesIds.forEach(inputInventoryRepository::deleteById);
       inventoryRepository.deleteAllByIdInBatch(inventoriesIds);
@@ -2211,6 +2230,137 @@ class InventoryControllerTests {
 
     mockMvc.perform(
             get("/api/inventories/reviewed/last")
+                .header("Authorization", "Bearer token-invalido")
+        )
+        .andExpect(status().isUnauthorized());
+  }
+
+  private void createEmission(InventoryEntity inventory, String quantityCo2e) {
+    EmissionEntity emission = new EmissionEntity();
+    emission.setQuantityCo2e(new BigDecimal(quantityCo2e));
+    emission.setInventory(inventory);
+    emissionRepository.save(emission);
+    emissionIds.add(emission.getId());
+  }
+
+  private void createReduction(InventoryEntity inventory, String quantityCo2e) {
+    ReductionEntity reduction = new ReductionEntity();
+    reduction.setQuantityCo2e(new BigDecimal(quantityCo2e));
+    reduction.setInventory(inventory);
+    reductionRepository.save(reduction);
+    reductionIds.add(reduction.getId());
+  }
+
+  // ---------------------------------------------------------------------------
+  // GET /api/inventories/enterprise-info
+  // ---------------------------------------------------------------------------
+
+  @Test
+  @DisplayName("Should return 200 with the summed enterprise reductions and emissions")
+  void findEnterpriseInfoSuccess() throws Exception {
+    InventoryEntity firstInventory = createInventory("Inventário Empresa A");
+    InventoryEntity secondInventory = createInventory("Inventário Empresa B", employeeOther);
+
+    createEmission(firstInventory, "10");
+    createEmission(secondInventory, "15.5");
+    createReduction(firstInventory, "4");
+    createReduction(secondInventory, "6");
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/enterprise-info")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.totalReductions").value(10))
+        .andExpect(jsonPath("$.totalEmissions").value(25.5));
+  }
+
+  @Test
+  @DisplayName("Should return 200 with zero totals when the enterprise has no reductions or emissions")
+  void findEnterpriseInfoEmpty() throws Exception {
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/enterprise-info")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.totalReductions").value(0))
+        .andExpect(jsonPath("$.totalEmissions").value(0));
+  }
+
+  @Test
+  @DisplayName("Should return 401 when JWT is not provided for enterprise info")
+  void findEnterpriseInfoWithoutAuthentication() throws Exception {
+    mockMvc.perform(
+            get("/api/inventories/enterprise-info")
+        )
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  @DisplayName("Should return 401 when JWT is invalid for enterprise info")
+  void findEnterpriseInfoWithInvalidToken() throws Exception {
+    mockMvc.perform(
+            get("/api/inventories/enterprise-info")
+                .header("Authorization", "Bearer token-invalido")
+        )
+        .andExpect(status().isUnauthorized());
+  }
+
+  // ---------------------------------------------------------------------------
+  // GET /api/inventories/unit-info
+  // ---------------------------------------------------------------------------
+
+  @Test
+  @DisplayName("Should return 200 with the summed unit reductions and emissions")
+  void findUnitInfoSuccess() throws Exception {
+    InventoryEntity inventory = createInventory("Inventário Unidade");
+
+    createEmission(inventory, "21.25");
+    createReduction(inventory, "7");
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/unit-info")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.totalReductions").value(7))
+        .andExpect(jsonPath("$.totalEmissions").value(21.25));
+  }
+
+  @Test
+  @DisplayName("Should return 200 with zero totals when the unit has no reductions or emissions")
+  void findUnitInfoEmpty() throws Exception {
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/unit-info")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.totalReductions").value(0))
+        .andExpect(jsonPath("$.totalEmissions").value(0));
+  }
+
+  @Test
+  @DisplayName("Should return 401 when JWT is not provided for unit info")
+  void findUnitInfoWithoutAuthentication() throws Exception {
+    mockMvc.perform(
+            get("/api/inventories/unit-info")
+        )
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  @DisplayName("Should return 401 when JWT is invalid for unit info")
+  void findUnitInfoWithInvalidToken() throws Exception {
+    mockMvc.perform(
+            get("/api/inventories/unit-info")
                 .header("Authorization", "Bearer token-invalido")
         )
         .andExpect(status().isUnauthorized());

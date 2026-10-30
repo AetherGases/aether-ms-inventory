@@ -10,7 +10,9 @@ import com.aether.ms_inventory.shared.persistence.postgres.entities.DepartmentEn
 import com.aether.ms_inventory.shared.persistence.postgres.entities.EmployeeEntity;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.InventoryEntity;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.StorageFileEntity;
+import com.aether.ms_inventory.shared.persistence.postgres.repositories.EmissionRepository;
 import com.aether.ms_inventory.shared.persistence.postgres.repositories.InventoryRepository;
+import com.aether.ms_inventory.shared.persistence.postgres.repositories.ReductionRepository;
 import com.aether.ms_inventory.shared.persistence.postgres.repositories.StorageFileRepository;
 import com.aether.ms_inventory.shared.persistence.postgres.specifications.InventorySpecification;
 import com.aether.ms_inventory.shared.persistence.redis.entities.InputInventoryDocument;
@@ -21,6 +23,8 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 
 @Service
@@ -29,6 +33,8 @@ public class InventoryService {
   private final InventoryRepository inventoryRepository;
   private final StorageFileRepository storageFileRepository;
   private final InputInventoryRepository inputInventoryRepository;
+  private final EmissionRepository emissionRepository;
+  private final ReductionRepository reductionRepository;
   private final GetUserInfosService getUserInfosService;
 
   @Transactional
@@ -124,7 +130,8 @@ public class InventoryService {
         .where(InventorySpecification.withName(input.name()))
         .and(InventorySpecification.withStatus(input.status()))
         .and(InventorySpecification.withNotProcessing())
-        .and(InventorySpecification.withDepartment(department.getId()));
+        .and(InventorySpecification.withDepartment(department.getId()))
+        .and(InventorySpecification.withType(InventoryTypeEnum.INPUT));
 
     List<InventoryEntity> inventories = inventoryRepository.findWithPagination(
         spec,
@@ -205,9 +212,12 @@ public class InventoryService {
   public CountInventoriesOutputDTO countInventories(
       CountInventoriesInputDTO input
   ){
+    DepartmentEntity department = getUserInfosService.getDepartment(input.userId());
+
     Specification<InventoryEntity> reviewedSpec = Specification
         .where(InventorySpecification.withValidatorEmployeeId(input.userId()))
-        .and(InventorySpecification.withNotProcessing());
+        .and(InventorySpecification.withNotDepartment(department.getId()))
+        .and(InventorySpecification.withReviewed());
 
     Specification<InventoryEntity> submittedSpec = Specification
         .where(InventorySpecification.withOwnerEmployeeId(input.userId()))
@@ -241,5 +251,36 @@ public class InventoryService {
     );
 
     return InventoryMapper.convertFindInventoryByIdEntityToOutput(inventory);
+  }
+
+  @Transactional(readOnly = true)
+  public FindEnterpriseInfoOutputDTO findEnterpriseInfo(
+      FindEnterpriseInfoInputDTO input
+  ){
+    DepartmentEntity department = getUserInfosService.getDepartment(input.userId());
+    Integer enterpriseId = department.getUnit().getEnterprise().getId();
+
+    return new FindEnterpriseInfoOutputDTO(
+        roundToTwoDecimals(reductionRepository.sumQuantityCo2eByEnterpriseId(enterpriseId)),
+        roundToTwoDecimals(emissionRepository.sumQuantityCo2eByEnterpriseId(enterpriseId))
+    );
+  }
+
+  @Transactional(readOnly = true)
+  public FindUnitInfoOutputDTO findUnitInfo(
+      FindUnitInfoInputDTO input
+  ){
+    DepartmentEntity department = getUserInfosService.getDepartment(input.userId());
+    Integer unitId = department.getUnit().getId();
+
+    return new FindUnitInfoOutputDTO(
+        roundToTwoDecimals(reductionRepository.sumQuantityCo2eByUnitId(unitId)),
+        roundToTwoDecimals(emissionRepository.sumQuantityCo2eByUnitId(unitId))
+    );
+  }
+
+  private BigDecimal roundToTwoDecimals(BigDecimal value) {
+    BigDecimal safeValue = value == null ? BigDecimal.ZERO : value;
+    return safeValue.setScale(2, RoundingMode.HALF_UP);
   }
 }

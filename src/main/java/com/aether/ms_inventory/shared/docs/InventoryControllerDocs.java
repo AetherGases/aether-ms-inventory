@@ -131,6 +131,46 @@ public interface InventoryControllerDocs {
   );
 
   @Operation(
+      summary = "Retorna o total de reduções e emissões da empresa.",
+      description = "Soma as quantidades de CO2e de todas as reduções e emissões dos inventários da empresa do usuário logado.",
+      tags = {"Inventories"},
+      responses = {
+          @ApiResponse(description = "Success", responseCode = "200", content =
+          @Content(
+              mediaType = MediaType.APPLICATION_JSON_VALUE,
+              schema = @Schema(implementation = FindEnterpriseInfoOutputDTO.class)
+          )
+          ),
+          @ApiResponse(description = "Unhautorized", responseCode = "401", content = @Content),
+          @ApiResponse(description = "Forbidden", responseCode = "403", content = @Content),
+          @ApiResponse(description = "Internal Server Error", responseCode = "500", content = @Content)
+      }
+  )
+  ResponseEntity<FindEnterpriseInfoOutputDTO> findEnterpriseInfo(
+      Authentication authentication
+  );
+
+  @Operation(
+      summary = "Retorna o total de reduções e emissões da unidade.",
+      description = "Soma as quantidades de CO2e de todas as reduções e emissões dos inventários da unidade do usuário logado.",
+      tags = {"Inventories"},
+      responses = {
+          @ApiResponse(description = "Success", responseCode = "200", content =
+          @Content(
+              mediaType = MediaType.APPLICATION_JSON_VALUE,
+              schema = @Schema(implementation = FindUnitInfoOutputDTO.class)
+          )
+          ),
+          @ApiResponse(description = "Unhautorized", responseCode = "401", content = @Content),
+          @ApiResponse(description = "Forbidden", responseCode = "403", content = @Content),
+          @ApiResponse(description = "Internal Server Error", responseCode = "500", content = @Content)
+      }
+  )
+  ResponseEntity<FindUnitInfoOutputDTO> findUnitInfo(
+      Authentication authentication
+  );
+
+  @Operation(
       summary = "Retorna os relatórios a serem validados.",
       description = "Retorna os relatórios a serem validados pelo usuário logado.",
       tags = {"Inventories"},
