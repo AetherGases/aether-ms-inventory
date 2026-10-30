@@ -10,6 +10,19 @@ import java.math.BigDecimal;
 
 @Repository
 public interface EmissionRepository extends JpaRepository<EmissionEntity, Integer> {
+  @Query("""
+      SELECT COALESCE(SUM(e.quantityCo2e), 0)
+      FROM EmissionEntity e
+      WHERE e.inventory.department.unit.enterprise.id = :enterpriseId
+      """)
+  BigDecimal sumQuantityCo2eByEnterpriseId(@Param("enterpriseId") Integer enterpriseId);
+
+  @Query("""
+      SELECT COALESCE(SUM(e.quantityCo2e), 0)
+      FROM EmissionEntity e
+      WHERE e.inventory.department.unit.id = :unitId
+      """)
+  BigDecimal sumQuantityCo2eByUnitId(@Param("unitId") Integer unitId);
 
   @Query(
       value = """

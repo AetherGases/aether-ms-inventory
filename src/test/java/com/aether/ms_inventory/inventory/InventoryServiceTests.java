@@ -7,8 +7,16 @@ import com.aether.ms_inventory.shared.enums.CategoryClassificationEnum;
 import com.aether.ms_inventory.shared.enums.InventoryStatusEnum;
 import com.aether.ms_inventory.shared.enums.InventoryTypeEnum;
 import com.aether.ms_inventory.shared.exceptions.NotFoundException;
+import com.aether.ms_inventory.shared.persistence.postgres.entities.DepartmentEntity;
+import com.aether.ms_inventory.shared.persistence.postgres.entities.EmployeeEntity;
+import com.aether.ms_inventory.shared.persistence.postgres.entities.EnterpriseEntity;
+import com.aether.ms_inventory.shared.persistence.postgres.entities.InventoryEntity;
+import com.aether.ms_inventory.shared.persistence.postgres.entities.StorageFileEntity;
+import com.aether.ms_inventory.shared.persistence.postgres.entities.UnitEntity;
+import com.aether.ms_inventory.shared.persistence.postgres.repositories.EmissionRepository;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.*;
 import com.aether.ms_inventory.shared.persistence.postgres.repositories.InventoryRepository;
+import com.aether.ms_inventory.shared.persistence.postgres.repositories.ReductionRepository;
 import com.aether.ms_inventory.shared.persistence.postgres.repositories.StorageFileRepository;
 import com.aether.ms_inventory.shared.persistence.redis.entities.InputInventoryDocument;
 import com.aether.ms_inventory.shared.persistence.redis.repositories.InputInventoryRepository;
@@ -47,6 +55,12 @@ public class InventoryServiceTests {
   private StorageFileRepository storageFileRepository;
   @Mock
   private InputInventoryRepository inputInventoryRepository;
+
+  @Mock
+  private EmissionRepository emissionRepository;
+
+  @Mock
+  private ReductionRepository reductionRepository;
 
   @Mock
   private GetUserInfosService getUserInfosService;
@@ -1241,6 +1255,12 @@ public class InventoryServiceTests {
 
     CountInventoriesInputDTO input = new CountInventoriesInputDTO(userId);
 
+    DepartmentEntity department = new DepartmentEntity();
+    department.setId(10);
+
+    when(getUserInfosService.getDepartment(userId))
+        .thenReturn(department);
+
     when(inventoryRepository.count(any(Specification.class)))
         .thenReturn(3L)
         .thenReturn(8L);
@@ -1250,8 +1270,8 @@ public class InventoryServiceTests {
     assertEquals(3L, output.reviewedCount());
     assertEquals(8L, output.submittedCount());
 
+    verify(getUserInfosService).getDepartment(userId);
     verify(inventoryRepository, times(2)).count(any(Specification.class));
-    verifyNoInteractions(getUserInfosService);
   }
 
   @Test
@@ -1261,6 +1281,12 @@ public class InventoryServiceTests {
 
     CountInventoriesInputDTO input = new CountInventoriesInputDTO(userId);
 
+    DepartmentEntity department = new DepartmentEntity();
+    department.setId(10);
+
+    when(getUserInfosService.getDepartment(userId))
+        .thenReturn(department);
+
     when(inventoryRepository.count(any(Specification.class)))
         .thenReturn(0L);
 
@@ -1268,6 +1294,27 @@ public class InventoryServiceTests {
 
     assertEquals(0L, output.reviewedCount());
     assertEquals(0L, output.submittedCount());
+  }
+
+  @Test
+  @DisplayName("Should not throw when the user department is null")
+  void countInventoriesNullDepartment() {
+    Integer userId = 1;
+
+    CountInventoriesInputDTO input = new CountInventoriesInputDTO(userId);
+
+    when(getUserInfosService.getDepartment(userId))
+        .thenReturn(null);
+
+    when(inventoryRepository.count(any(Specification.class)))
+        .thenReturn(0L);
+
+    CountInventoriesOutputDTO output = inventoryService.countInventories(input);
+
+    assertEquals(0L, output.reviewedCount());
+    assertEquals(0L, output.submittedCount());
+
+    verify(inventoryRepository, times(2)).count(any(Specification.class));
   }
 
   // ---------------------------------------------------------------------------
@@ -1796,5 +1843,122 @@ public class InventoryServiceTests {
         eq(0),
         eq(1)
     );
+  }
+
+  // ---------------------------------------------------------------------------
+  // findEnterpriseInfo
+  // ---------------------------------------------------------------------------
+
+  @Test
+  @DisplayName("Should return the summed reductions and emissions of the enterprise")
+  void findEnterpriseInfo() {
+    Integer userId = 1;
+    Integer enterpriseId = 20;
+
+    DepartmentEntity department = departmentWithEnterprise(enterpriseId, 30);
+
+    when(getUserInfosService.getDepartment(userId)).thenReturn(department);
+    when(reductionRepository.sumQuantityCo2eByEnterpriseId(enterpriseId))
+        .thenReturn(new BigDecimal("12.5"));
+    when(emissionRepository.sumQuantityCo2eByEnterpriseId(enterpriseId))
+        .thenReturn(new BigDecimal("40"));
+
+    FindEnterpriseInfoOutputDTO output = inventoryService.findEnterpriseInfo(
+        new FindEnterpriseInfoInputDTO(userId)
+    );
+
+    assertEquals(new BigDecimal("12.50"), output.totalReductions());
+    assertEquals(new BigDecimal("40.00"), output.totalEmissions());
+
+    verify(reductionRepository).sumQuantityCo2eByEnterpriseId(enterpriseId);
+    verify(emissionRepository).sumQuantityCo2eByEnterpriseId(enterpriseId);
+    verifyNoInteractions(inventoryRepository);
+  }
+
+  @Test
+  @DisplayName("Should return zero totals when the enterprise has no reductions or emissions")
+  void findEnterpriseInfoEmpty() {
+    Integer userId = 1;
+    Integer enterpriseId = 20;
+
+    DepartmentEntity department = departmentWithEnterprise(enterpriseId, 30);
+
+    when(getUserInfosService.getDepartment(userId)).thenReturn(department);
+    when(reductionRepository.sumQuantityCo2eByEnterpriseId(enterpriseId)).thenReturn(null);
+    when(emissionRepository.sumQuantityCo2eByEnterpriseId(enterpriseId)).thenReturn(null);
+
+    FindEnterpriseInfoOutputDTO output = inventoryService.findEnterpriseInfo(
+        new FindEnterpriseInfoInputDTO(userId)
+    );
+
+    assertEquals(new BigDecimal("0.00"), output.totalReductions());
+    assertEquals(new BigDecimal("0.00"), output.totalEmissions());
+  }
+
+  // ---------------------------------------------------------------------------
+  // findUnitInfo
+  // ---------------------------------------------------------------------------
+
+  @Test
+  @DisplayName("Should return the summed reductions and emissions of the unit")
+  void findUnitInfo() {
+    Integer userId = 1;
+    Integer unitId = 30;
+
+    DepartmentEntity department = departmentWithEnterprise(20, unitId);
+
+    when(getUserInfosService.getDepartment(userId)).thenReturn(department);
+    when(reductionRepository.sumQuantityCo2eByUnitId(unitId))
+        .thenReturn(new BigDecimal("7"));
+    when(emissionRepository.sumQuantityCo2eByUnitId(unitId))
+        .thenReturn(new BigDecimal("21.25"));
+
+    FindUnitInfoOutputDTO output = inventoryService.findUnitInfo(
+        new FindUnitInfoInputDTO(userId)
+    );
+
+    assertEquals(new BigDecimal("7.00"), output.totalReductions());
+    assertEquals(new BigDecimal("21.25"), output.totalEmissions());
+    assertEquals(new BigDecimal("32.94"), output.reducedPercentage());
+
+    verify(reductionRepository).sumQuantityCo2eByUnitId(unitId);
+    verify(emissionRepository).sumQuantityCo2eByUnitId(unitId);
+    verifyNoInteractions(inventoryRepository);
+  }
+
+  @Test
+  @DisplayName("Should return zero totals when the unit has no reductions or emissions")
+  void findUnitInfoEmpty() {
+    Integer userId = 1;
+    Integer unitId = 30;
+
+    DepartmentEntity department = departmentWithEnterprise(20, unitId);
+
+    when(getUserInfosService.getDepartment(userId)).thenReturn(department);
+    when(reductionRepository.sumQuantityCo2eByUnitId(unitId)).thenReturn(null);
+    when(emissionRepository.sumQuantityCo2eByUnitId(unitId)).thenReturn(null);
+
+    FindUnitInfoOutputDTO output = inventoryService.findUnitInfo(
+        new FindUnitInfoInputDTO(userId)
+    );
+
+    assertEquals(new BigDecimal("0.00"), output.totalReductions());
+    assertEquals(new BigDecimal("0.00"), output.totalEmissions());
+    assertEquals(new BigDecimal("0.00"), output.reducedPercentage());
+  }
+
+  private DepartmentEntity departmentWithEnterprise(Integer enterpriseId, Integer unitId) {
+    EnterpriseEntity enterprise = new EnterpriseEntity();
+    enterprise.setId(enterpriseId);
+
+    UnitEntity unit = new UnitEntity();
+    unit.setId(unitId);
+    unit.setEnterprise(enterprise);
+
+    DepartmentEntity department = new DepartmentEntity();
+    department.setId(10);
+    department.setUnit(unit);
+
+    return department;
   }
 }

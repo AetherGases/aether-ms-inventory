@@ -2,7 +2,9 @@ package com.aether.ms_inventory.inventory.controllers;
 
 import com.aether.ms_inventory.inventory.dto.input.ApproveInventoryInputDTO;
 import com.aether.ms_inventory.inventory.dto.input.CountInventoriesInputDTO;
+import com.aether.ms_inventory.inventory.dto.input.FindEnterpriseInfoInputDTO;
 import com.aether.ms_inventory.inventory.dto.input.FindLastInventoryInputDTO;
+import com.aether.ms_inventory.inventory.dto.input.FindUnitInfoInputDTO;
 import com.aether.ms_inventory.inventory.dto.input.RejectInventoryInputDTO;
 import com.aether.ms_inventory.inventory.dto.output.*;
 import com.aether.ms_inventory.inventory.dto.query_params.FindManyPendingInventoriesQueryParamsDTO;
@@ -116,6 +118,36 @@ public class InventoryController implements InventoryControllerDocs {
     return new ResponseEntity<>(
         this.inventoryService.countInventories(
             new CountInventoriesInputDTO(user.getId())
+        ),
+        HttpStatus.OK
+    );
+  }
+
+  @Override
+  @GetMapping("/enterprise-info")
+  public ResponseEntity<FindEnterpriseInfoOutputDTO> findEnterpriseInfo(
+      Authentication authentication
+  ){
+    CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
+
+    return new ResponseEntity<>(
+        this.inventoryService.findEnterpriseInfo(
+            new FindEnterpriseInfoInputDTO(user.getId())
+        ),
+        HttpStatus.OK
+    );
+  }
+
+  @Override
+  @GetMapping("/unit-info")
+  public ResponseEntity<FindUnitInfoOutputDTO> findUnitInfo(
+      Authentication authentication
+  ){
+    CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
+
+    return new ResponseEntity<>(
+        this.inventoryService.findUnitInfo(
+            new FindUnitInfoInputDTO(user.getId())
         ),
         HttpStatus.OK
     );

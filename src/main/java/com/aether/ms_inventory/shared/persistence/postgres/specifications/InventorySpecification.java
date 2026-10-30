@@ -35,6 +35,15 @@ public class InventorySpecification {
         ).not();
   }
 
+  public static Specification<InventoryEntity> withReviewed() {
+    return (root, query, cb) ->
+        root.get("status").in(
+            InventoryStatusEnum.APPROVED,
+            InventoryStatusEnum.REJECTED
+        );
+  }
+
+
   public static Specification<InventoryEntity> withOwnerEmployeeId(Integer ownerEmployeeId) {
     return (root, query, cb) -> {
       if (ownerEmployeeId == null) {
@@ -50,13 +59,22 @@ public class InventorySpecification {
 
   public static Specification<InventoryEntity> withNotOwnerEmployeeId(Integer ownerEmployeeId) {
     return (root, query, cb) -> {
-      if (ownerEmployeeId == null) {
-        return null;
-      }
+      if (ownerEmployeeId == null) return null;
 
       return cb.notEqual(
           root.get("ownerEmployee").get("id"),
           ownerEmployeeId
+      );
+    };
+  }
+
+  public static Specification<InventoryEntity> withNotDepartment(Integer departmentId){
+    return (root, query, cb) -> {
+      if (departmentId == null) return null;
+
+      return cb.notEqual(
+          root.get("department").get("id"),
+          departmentId
       );
     };
   }
