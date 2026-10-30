@@ -273,10 +273,24 @@ public class InventoryService {
     DepartmentEntity department = getUserInfosService.getDepartment(input.userId());
     Integer unitId = department.getUnit().getId();
 
+    BigDecimal totalReductions = roundToTwoDecimals(reductionRepository.sumQuantityCo2eByUnitId(unitId));
+    BigDecimal totalEmissions = roundToTwoDecimals(emissionRepository.sumQuantityCo2eByUnitId(unitId));
+
     return new FindUnitInfoOutputDTO(
-        roundToTwoDecimals(reductionRepository.sumQuantityCo2eByUnitId(unitId)),
-        roundToTwoDecimals(emissionRepository.sumQuantityCo2eByUnitId(unitId))
+        totalReductions,
+        totalEmissions,
+        calculateReducedPercentage(totalReductions, totalEmissions)
     );
+  }
+
+  private BigDecimal calculateReducedPercentage(BigDecimal reductions, BigDecimal emissions) {
+    if (emissions.signum() == 0) {
+      return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    return reductions
+        .multiply(BigDecimal.valueOf(100))
+        .divide(emissions, 2, RoundingMode.HALF_UP);
   }
 
   private BigDecimal roundToTwoDecimals(BigDecimal value) {

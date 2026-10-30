@@ -2330,7 +2330,8 @@ class InventoryControllerTests {
         )
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.totalReductions").value(7))
-        .andExpect(jsonPath("$.totalEmissions").value(21.25));
+        .andExpect(jsonPath("$.totalEmissions").value(21.25))
+        .andExpect(jsonPath("$.reducedPercentage").value(32.94));
   }
 
   @Test
@@ -2344,7 +2345,8 @@ class InventoryControllerTests {
         )
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.totalReductions").value(0))
-        .andExpect(jsonPath("$.totalEmissions").value(0));
+        .andExpect(jsonPath("$.totalEmissions").value(0))
+        .andExpect(jsonPath("$.reducedPercentage").value(0));
   }
 
   @Test

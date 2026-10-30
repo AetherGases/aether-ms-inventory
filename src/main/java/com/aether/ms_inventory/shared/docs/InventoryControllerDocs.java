@@ -151,8 +151,8 @@ public interface InventoryControllerDocs {
   );
 
   @Operation(
-      summary = "Retorna o total de reduções e emissões da unidade.",
-      description = "Soma as quantidades de CO2e de todas as reduções e emissões dos inventários da unidade do usuário logado.",
+      summary = "Retorna o total de reduções, emissões e o percentual reduzido da unidade.",
+      description = "Soma as quantidades de CO2e de todas as reduções e emissões dos inventários da unidade do usuário logado e calcula o percentual reduzido (reduções / emissões * 100). Retorna 0 quando não há emissões.",
       tags = {"Inventories"},
       responses = {
           @ApiResponse(description = "Success", responseCode = "200", content =

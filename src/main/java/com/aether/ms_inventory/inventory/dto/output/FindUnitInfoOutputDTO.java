@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 
 public record FindUnitInfoOutputDTO(
     BigDecimal totalReductions,
-    BigDecimal totalEmissions
+    BigDecimal totalEmissions,
+    BigDecimal reducedPercentage
 ) {
 }

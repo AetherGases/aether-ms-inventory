@@ -1711,6 +1711,7 @@ public class InventoryServiceTests {
 
     assertEquals(new BigDecimal("7.00"), output.totalReductions());
     assertEquals(new BigDecimal("21.25"), output.totalEmissions());
+    assertEquals(new BigDecimal("32.94"), output.reducedPercentage());
 
     verify(reductionRepository).sumQuantityCo2eByUnitId(unitId);
     verify(emissionRepository).sumQuantityCo2eByUnitId(unitId);
@@ -1735,6 +1736,7 @@ public class InventoryServiceTests {
 
     assertEquals(new BigDecimal("0.00"), output.totalReductions());
     assertEquals(new BigDecimal("0.00"), output.totalEmissions());
+    assertEquals(new BigDecimal("0.00"), output.reducedPercentage());
   }
 
   private DepartmentEntity departmentWithEnterprise(Integer enterpriseId, Integer unitId) {
