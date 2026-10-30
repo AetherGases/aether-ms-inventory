@@ -59,4 +59,4 @@ aeko:
   authentication-key: ${INTERNAL_AUTHENTICATION_KEY:aether-dev}
 
 cors:
-  origin-patterns: ${CORS_ORIGIN_PATTERNS}
+  origin-patterns: ${CORS_ORIGIN_PATTERNS:http://localhost:8080}
