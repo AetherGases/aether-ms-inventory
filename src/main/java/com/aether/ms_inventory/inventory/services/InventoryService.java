@@ -214,9 +214,11 @@ public class InventoryService {
   ){
     DepartmentEntity department = getUserInfosService.getDepartment(input.userId());
 
+    Integer departmentId = department != null ? department.getId() : null;
+
     Specification<InventoryEntity> reviewedSpec = Specification
         .where(InventorySpecification.withValidatorEmployeeId(input.userId()))
-        .and(InventorySpecification.withNotDepartment(department.getId()))
+        .and(InventorySpecification.withDepartment(departmentId))
         .and(InventorySpecification.withReviewed());
 
     Specification<InventoryEntity> submittedSpec = Specification

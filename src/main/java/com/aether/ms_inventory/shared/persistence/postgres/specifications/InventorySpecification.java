@@ -40,7 +40,7 @@ public class InventorySpecification {
         root.get("status").in(
             InventoryStatusEnum.APPROVED,
             InventoryStatusEnum.REJECTED
-        ).not();
+        );
   }
 
 
