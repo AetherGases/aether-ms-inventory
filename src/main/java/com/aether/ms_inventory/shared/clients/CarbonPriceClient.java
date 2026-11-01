@@ -52,7 +52,6 @@ public class CarbonPriceClient {
         .build();
   }
 
-  /** Preço atual da tonelada de carbono, em EUR. */
   public BigDecimal getLatestPriceInEur() {
     BigDecimal cached = cachedPrice;
 
