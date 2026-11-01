@@ -63,3 +63,12 @@ cloudinary:
 inventory:
   generation-worker:
     enabled: false
+  worker:
+    enabled: false
+
+aeko:
+  base-url: http://localhost:8000
+  authentication-key: test-authentication-key
+
+cors:
+  origin-patterns: http://localhost:8080

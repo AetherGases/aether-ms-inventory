@@ -1,7 +1,7 @@
 package com.aether.ms_inventory.shared.handlers;
 
-import com.aether.ms_inventory.shared.exceptions.CoreApiException;
-import com.aether.ms_inventory.shared.handlers.dto.output.ExceptionOutputDTO;
+import com.aether.ms_inventory.shared.exceptions.MsInventoryException;
+import com.aether.ms_inventory.shared.dto.output.ExceptionOutputDTO;
 import com.aether.ms_inventory.shared.services.MessageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -22,8 +22,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class GlobalExceptionHandler {
   private final MessageService messageService;
-  @ExceptionHandler(CoreApiException.class)
-  public ResponseEntity<ExceptionOutputDTO> handleCoreApiException(CoreApiException ex){
+  @ExceptionHandler(MsInventoryException.class)
+  public ResponseEntity<ExceptionOutputDTO> handleCoreApiException(MsInventoryException ex){
     return new ResponseEntity<>(
         new ExceptionOutputDTO(
             messageService.getMessage(ex.getMessage()),

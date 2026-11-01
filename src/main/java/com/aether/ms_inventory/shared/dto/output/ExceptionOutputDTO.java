@@ -1,4 +1,4 @@
-package com.aether.ms_inventory.shared.handlers.dto.output;
+package com.aether.ms_inventory.shared.dto.output;
 
 import org.springframework.http.HttpStatus;
 
