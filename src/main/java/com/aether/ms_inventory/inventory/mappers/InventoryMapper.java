@@ -5,6 +5,7 @@ import com.aether.ms_inventory.inventory.dto.output.*;
 import com.aether.ms_inventory.inventory.dto.query_params.FindManyPendingInventoriesQueryParamsDTO;
 import com.aether.ms_inventory.inventory.dto.query_params.FindManyReviewedInventoriesQueryParamsDTO;
 import com.aether.ms_inventory.inventory.dto.query_params.FindMyInventoriesQueryParamsDTO;
+import com.aether.ms_inventory.inventory.dto.request.GenerateInventoryRequestDTO;
 import com.aether.ms_inventory.inventory.dto.request.RegisterInventoryRequestDTO;
 import com.aether.ms_inventory.shared.AetherConstants;
 import com.aether.ms_inventory.shared.helpers.NormalizeInput;
@@ -204,6 +205,28 @@ public class InventoryMapper {
         inventory.getType(),
         inventory.getCreatedAt(),
         inventory.getUpdatedAt()
+    );
+  }
+
+  public static GenerateInventoryInputDTO convertGenerateInventoryRequestToInput(Integer userId, GenerateInventoryRequestDTO request){
+    return new GenerateInventoryInputDTO(
+        userId,
+        NormalizeInput.name(request.name()),
+        NormalizeInput.name(request.consolidationApproach()),
+        request.startDatePeriod(),
+        request.endDatePeriod()
+    );
+  }
+
+  public static GenerateInventoryOutputDTO convertGenerateInventoryEntityToOutput(InventoryEntity inventory){
+    return new GenerateInventoryOutputDTO(
+        inventory.getId(),
+        NormalizeOutput.name(inventory.getName()),
+        inventory.getType(),
+        inventory.getStatus(),
+        inventory.getInventoryPeriodStart(),
+        inventory.getInventoryPeriodEnd(),
+        inventory.getCreatedAt()
     );
   }
 

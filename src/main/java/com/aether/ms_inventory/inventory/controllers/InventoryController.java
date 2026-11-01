@@ -11,6 +11,7 @@ import com.aether.ms_inventory.inventory.dto.query_params.FindManyPendingInvento
 import com.aether.ms_inventory.inventory.dto.query_params.FindManyReviewedInventoriesQueryParamsDTO;
 import com.aether.ms_inventory.inventory.dto.query_params.FindMyInventoriesQueryParamsDTO;
 import com.aether.ms_inventory.inventory.dto.request.ApproveInventoryRequestDTO;
+import com.aether.ms_inventory.inventory.dto.request.GenerateInventoryRequestDTO;
 import com.aether.ms_inventory.inventory.dto.request.RegisterInventoryRequestDTO;
 import com.aether.ms_inventory.inventory.dto.request.RejectInventoryRequestDTO;
 import com.aether.ms_inventory.inventory.dto.route_params.FindInventoryByIdRouteParamsDTO;
@@ -48,6 +49,28 @@ public class InventoryController implements InventoryControllerDocs {
     return new ResponseEntity<>(
         this.inventoryService.registerInventory(
             InventoryMapper.convertRegisterInventoryRequestToInput(
+                user.getId(),
+                input
+            )
+        ),
+        HttpStatus.CREATED
+    );
+  }
+
+  @Override
+  @PostMapping("/generate")
+  public ResponseEntity<GenerateInventoryOutputDTO> generateInventory(
+      @RequestBody
+      @Valid
+      GenerateInventoryRequestDTO input,
+
+      Authentication authentication
+  ){
+    CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
+
+    return new ResponseEntity<>(
+        this.inventoryService.generateInventory(
+            InventoryMapper.convertGenerateInventoryRequestToInput(
                 user.getId(),
                 input
             )

@@ -61,6 +61,8 @@ cloudinary:
   api_secret: test-api-secret
 
 inventory:
+  generation-worker:
+    enabled: false
   worker:
     enabled: false
 

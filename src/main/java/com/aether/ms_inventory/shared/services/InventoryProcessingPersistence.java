@@ -6,7 +6,7 @@ import com.aether.ms_inventory.shared.enums.InventoryStatusEnum;
 import com.aether.ms_inventory.shared.exceptions.InventoryProcessingException;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.*;
 import com.aether.ms_inventory.shared.persistence.postgres.repositories.*;
-import com.aether.ms_inventory.shared.workers.InventoryProcessingContext;
+import com.aether.ms_inventory.shared.workers.contexts.InventoryProcessingContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

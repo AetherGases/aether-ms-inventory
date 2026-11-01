@@ -70,4 +70,7 @@ jobs:
           REDIS_HOST: localhost
           REDIS_PORT: 6379
           REDIS_PASSWORD: ci_redis_password
+          CLOUDINARY_API_KEY: ${{ secrets.CI_CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET: ${{ secrets.CI_CLOUDINARY_API_SECRET }}
+          CLOUDINARY_CLOUD_NAME: ${{ secrets.CI_CLOUDINARY_CLOUD_NAME }}
         run: mvn clean compile test -DskipTests=false

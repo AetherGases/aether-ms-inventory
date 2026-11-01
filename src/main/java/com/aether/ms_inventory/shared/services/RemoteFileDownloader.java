@@ -102,8 +102,6 @@ public class RemoteFileDownloader {
 
     return uri;
   }
-
-  // Accepts exact hosts, "*" (any host) and "*.domain.com" (any subdomain of domain.com).
   private boolean isAllowedHost(String host) {
     if (allowedHosts.isEmpty() || allowedHosts.contains("*") || allowedHosts.contains(host)) {
       return true;

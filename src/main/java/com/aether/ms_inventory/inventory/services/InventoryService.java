@@ -5,6 +5,7 @@ import com.aether.ms_inventory.inventory.dto.output.*;
 import com.aether.ms_inventory.inventory.mappers.InventoryMapper;
 import com.aether.ms_inventory.shared.enums.InventoryStatusEnum;
 import com.aether.ms_inventory.shared.enums.InventoryTypeEnum;
+import com.aether.ms_inventory.shared.exceptions.BadRequestException;
 import com.aether.ms_inventory.shared.exceptions.NotFoundException;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.DepartmentEntity;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.EmployeeEntity;
@@ -17,7 +18,9 @@ import com.aether.ms_inventory.shared.persistence.postgres.repositories.StorageF
 import com.aether.ms_inventory.shared.persistence.postgres.specifications.InventorySpecification;
 import com.aether.ms_inventory.shared.persistence.redis.entities.InputInventoryDocument;
 import com.aether.ms_inventory.shared.persistence.redis.repositories.InputInventoryRepository;
+import com.aether.ms_inventory.shared.persistence.redis.repositories.InventoryGenerationQueueRepository;
 import com.aether.ms_inventory.shared.services.GetUserInfosService;
+import com.aether.ms_inventory.shared.workers.InventoryGenerationJob;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -33,6 +36,7 @@ public class InventoryService {
   private final InventoryRepository inventoryRepository;
   private final StorageFileRepository storageFileRepository;
   private final InputInventoryRepository inputInventoryRepository;
+  private final InventoryGenerationQueueRepository inventoryGenerationQueueRepository;
   private final EmissionRepository emissionRepository;
   private final ReductionRepository reductionRepository;
   private final GetUserInfosService getUserInfosService;
@@ -70,6 +74,33 @@ public class InventoryService {
         inventory,
         storageFile
     );
+  }
+
+  @Transactional
+  public GenerateInventoryOutputDTO generateInventory(GenerateInventoryInputDTO input){
+    if (input.periodEnd().isBefore(input.periodStart())) {
+      throw new BadRequestException("exception.inventory-period.invalid");
+    }
+
+    EmployeeEntity employee = getUserInfosService.getEmployee(input.userId());
+
+    InventoryEntity inventory = new InventoryEntity(
+        input.name(),
+        InventoryTypeEnum.OUTPUT,
+        employee
+    );
+
+    inventory.setConsolidationApproach(input.consolidationApproach());
+    inventory.setInventoryPeriodStart(input.periodStart());
+    inventory.setInventoryPeriodEnd(input.periodEnd());
+
+    inventoryRepository.save(inventory);
+
+    inventoryGenerationQueueRepository.enqueue(
+        new InventoryGenerationJob(inventory.getId())
+    );
+
+    return InventoryMapper.convertGenerateInventoryEntityToOutput(inventory);
   }
 
   public FindMyInventoriesHistoryOutputDTO findMyInventoriesHistory(
