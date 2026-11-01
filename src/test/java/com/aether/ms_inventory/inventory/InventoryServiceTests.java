@@ -102,7 +102,6 @@ public class InventoryServiceTests {
   @DisplayName("Should return my inventories with pagination")
   void findMyInventoriesHistory() {
     Integer userId = 1;
-    Integer departmentId = 10;
 
     FindMyInventoriesHistoryInputDTO input =
         new FindMyInventoriesHistoryInputDTO(
@@ -113,15 +112,9 @@ public class InventoryServiceTests {
             10
         );
 
-    DepartmentEntity department = new DepartmentEntity();
-    department.setId(departmentId);
-
     InventoryEntity inventory = new InventoryEntity();
 
     List<InventoryEntity> inventories = List.of(inventory);
-
-    when(getUserInfosService.getDepartment(userId))
-        .thenReturn(department);
 
     when(inventoryRepository.findWithPagination(
         any(Specification.class),
@@ -138,8 +131,6 @@ public class InventoryServiceTests {
     assertEquals(1, output.inventories().size());
     assertEquals(1L, output.totalCount());
 
-    verify(getUserInfosService).getDepartment(userId);
-
     verify(inventoryRepository).findWithPagination(
         any(Specification.class),
         eq(input.skip()),
@@ -153,7 +144,6 @@ public class InventoryServiceTests {
   @DisplayName("Should return an empty list when there are no inventories")
   void findMyInventoriesHistoryEmpty() {
     Integer userId = 1;
-    Integer departmentId = 10;
 
     FindMyInventoriesHistoryInputDTO input =
         new FindMyInventoriesHistoryInputDTO(
@@ -163,12 +153,6 @@ public class InventoryServiceTests {
             0,
             10
         );
-
-    DepartmentEntity department = new DepartmentEntity();
-    department.setId(departmentId);
-
-    when(getUserInfosService.getDepartment(userId))
-        .thenReturn(department);
 
     when(inventoryRepository.findWithPagination(
         any(Specification.class),
@@ -198,7 +182,6 @@ public class InventoryServiceTests {
   @DisplayName("Should apply pagination parameters correctly")
   void findMyInventoriesHistoryPagination() {
     Integer userId = 1;
-    Integer departmentId = 10;
 
     Integer skip = 20;
     Integer take = 10;
@@ -211,12 +194,6 @@ public class InventoryServiceTests {
             skip,
             take
         );
-
-    DepartmentEntity department = new DepartmentEntity();
-    department.setId(departmentId);
-
-    when(getUserInfosService.getDepartment(userId))
-        .thenReturn(department);
 
     when(inventoryRepository.findWithPagination(
         any(Specification.class),
@@ -240,7 +217,6 @@ public class InventoryServiceTests {
   @DisplayName("Should count inventories using the same specification")
   void findMyInventoriesHistoryCount() {
     Integer userId = 1;
-    Integer departmentId = 10;
 
     FindMyInventoriesHistoryInputDTO input =
         new FindMyInventoriesHistoryInputDTO(
@@ -250,12 +226,6 @@ public class InventoryServiceTests {
             0,
             10
         );
-
-    DepartmentEntity department = new DepartmentEntity();
-    department.setId(departmentId);
-
-    when(getUserInfosService.getDepartment(userId))
-        .thenReturn(department);
 
     when(inventoryRepository.findWithPagination(
         any(Specification.class),
@@ -272,31 +242,6 @@ public class InventoryServiceTests {
     assertEquals(5L, output.totalCount());
 
     verify(inventoryRepository).count(any(Specification.class));
-  }
-
-  @Test
-  @DisplayName("Should not query inventories when the department lookup fails")
-  void findMyInventoriesHistoryWhenDepartmentLookupFails() {
-    Integer userId = 1;
-
-    FindMyInventoriesHistoryInputDTO input =
-        new FindMyInventoriesHistoryInputDTO(
-            userId,
-            null,
-            null,
-            0,
-            10
-        );
-
-    when(getUserInfosService.getDepartment(userId))
-        .thenThrow(new RuntimeException("Department not found"));
-
-    assertThrows(
-        RuntimeException.class,
-        () -> inventoryService.findMyInventoriesHistory(input)
-    );
-
-    verifyNoInteractions(inventoryRepository);
   }
 
   // ---------------------------------------------------------------------------
