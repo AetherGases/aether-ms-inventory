@@ -84,5 +84,16 @@ aeko:
   read-timeout-seconds: 120
   authentication-key: ${INTERNAL_AUTHENTICATION_KEY:aether-dev}
 
+oilpriceapi:
+  base-url: https://api.oilpriceapi.com
+  api-key: ${OILPRICEAPI_API_KEY:}
+  timeout-seconds: 5
+  cache-ttl-minutes: 30
+
+exchange-rate:
+  base-url: https://api.frankfurter.dev
+  timeout-seconds: 5
+  cache-ttl-minutes: 60
+
 cors:
   origin-patterns: ${CORS_ORIGIN_PATTERNS:http://localhost:8080}

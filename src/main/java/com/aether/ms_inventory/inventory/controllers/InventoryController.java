@@ -257,6 +257,28 @@ public class InventoryController implements InventoryControllerDocs {
   }
 
   @Override
+  @GetMapping("/{id}/analysis")
+  public ResponseEntity<FindInventoryAnalysisOutputDTO> findInventoryAnalysis(
+      @ModelAttribute
+      @Valid
+      FindInventoryByIdRouteParamsDTO params,
+
+      Authentication authentication
+  ){
+    CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
+
+    return new ResponseEntity<>(
+        this.inventoryService.findInventoryAnalysis(
+            InventoryMapper.convertFindInventoryByIdRouteParamsToInput(
+                user.getId(),
+                params
+            )
+        ),
+        HttpStatus.OK
+    );
+  }
+
+  @Override
   @PatchMapping("/pending/{id}/reject")
   public ResponseEntity<RejectInventoryOutputDTO> rejectInventory(
       @PathVariable()

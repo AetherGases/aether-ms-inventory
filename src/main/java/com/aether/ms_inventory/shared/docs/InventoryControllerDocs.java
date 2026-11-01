@@ -330,4 +330,31 @@ public interface InventoryControllerDocs {
 
       Authentication authentication
   );
+
+  @Operation(
+      summary = "Retorna a análise de um relatório pelo ID.",
+      description = "Retorna o total de emissões (tCO2e), a variação percentual em relação ao inventário anterior do departamento, o percentual de cada escopo e a economia mensal estimada em reais (reduções x preço do carbono EU ETS em EUR convertido para BRL, dividido pelos meses do período).",
+      tags = {"Inventories"},
+      responses = {
+          @ApiResponse(description = "Success", responseCode = "200", content =
+          @Content(
+              mediaType = MediaType.APPLICATION_JSON_VALUE,
+              schema = @Schema(implementation = FindInventoryAnalysisOutputDTO.class)
+          )
+          ),
+          @ApiResponse(description = "Bad Request", responseCode = "400", content = @Content),
+          @ApiResponse(description = "Unhautorized", responseCode = "401", content = @Content),
+          @ApiResponse(description = "Forbidden", responseCode = "403", content = @Content),
+          @ApiResponse(description = "Not Found", responseCode = "404", content = @Content),
+          @ApiResponse(description = "Bad Gateway", responseCode = "502", content = @Content),
+          @ApiResponse(description = "Internal Server Error", responseCode = "500", content = @Content)
+      }
+  )
+  ResponseEntity<FindInventoryAnalysisOutputDTO> findInventoryAnalysis(
+      @ParameterObject
+      @Valid
+      FindInventoryByIdRouteParamsDTO params,
+
+      Authentication authentication
+  );
 }

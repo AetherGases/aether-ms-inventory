@@ -24,6 +24,13 @@ public interface ReductionRepository extends JpaRepository<ReductionEntity, Inte
       """)
   BigDecimal sumQuantityCo2eByUnitId(@Param("unitId") Integer unitId);
 
+  @Query("""
+      SELECT COALESCE(SUM(r.quantityCo2e), 0)
+      FROM ReductionEntity r
+      WHERE r.inventory.id = :inventoryId
+      """)
+  BigDecimal sumQuantityCo2eByInventoryId(@Param("inventoryId") Integer inventoryId);
+
   @Query(
       value = """
           CALL sp_register_reduction(

@@ -24,6 +24,13 @@ public interface EmissionRepository extends JpaRepository<EmissionEntity, Intege
       """)
   BigDecimal sumQuantityCo2eByUnitId(@Param("unitId") Integer unitId);
 
+  @Query("""
+      SELECT COALESCE(SUM(e.quantityCo2e), 0)
+      FROM EmissionEntity e
+      WHERE e.inventory.id = :inventoryId
+      """)
+  BigDecimal sumQuantityCo2eByInventoryId(@Param("inventoryId") Integer inventoryId);
+
   @Query(
       value = """
           CALL sp_register_emission(

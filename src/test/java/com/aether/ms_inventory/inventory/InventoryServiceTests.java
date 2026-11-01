@@ -3,6 +3,8 @@ package com.aether.ms_inventory.inventory;
 import com.aether.ms_inventory.inventory.dto.input.*;
 import com.aether.ms_inventory.inventory.dto.output.*;
 import com.aether.ms_inventory.inventory.services.InventoryService;
+import com.aether.ms_inventory.shared.clients.CarbonPriceClient;
+import com.aether.ms_inventory.shared.clients.ExchangeRateClient;
 import com.aether.ms_inventory.shared.enums.CategoryClassificationEnum;
 import com.aether.ms_inventory.shared.enums.InventoryStatusEnum;
 import com.aether.ms_inventory.shared.enums.InventoryTypeEnum;
@@ -74,6 +76,12 @@ public class InventoryServiceTests {
 
   @Mock
   private InventoryNotificationService notificationService;
+
+  @Mock
+  private CarbonPriceClient carbonPriceClient;
+
+  @Mock
+  private ExchangeRateClient exchangeRateClient;
 
   @InjectMocks
   private InventoryService inventoryService;
@@ -1539,6 +1547,98 @@ public class InventoryServiceTests {
     );
 
     verify(inventoryRepository).findByIdAndOwnerEmployeeId(eq(inventoryId), eq(userId));
+  }
+
+  // ---------------------------------------------------------------------------
+  // findInventoryAnalysis
+  // ---------------------------------------------------------------------------
+
+  @Test
+  @DisplayName("Should return totals, change, scope percentages and monthly savings in BRL")
+  void findInventoryAnalysis() {
+    DepartmentEntity department = new DepartmentEntity();
+    department.setId(10);
+
+    ScopeEntity scope1 = new ScopeEntity();
+    scope1.setName("Scope 1");
+    ScopeEntity scope2 = new ScopeEntity();
+    scope2.setName("Scope 2");
+
+    EmissionEntity e1 = new EmissionEntity();
+    e1.setQuantityCo2e(new BigDecimal("75"));
+    e1.setScope(scope1);
+    EmissionEntity e2 = new EmissionEntity();
+    e2.setQuantityCo2e(new BigDecimal("25"));
+    e2.setScope(scope2);
+
+    InventoryEntity inventory = new InventoryEntity();
+    inventory.setId(5);
+    inventory.setType(InventoryTypeEnum.OUTPUT);
+    inventory.setInventoryPeriodStart(LocalDate.of(2026, 1, 1));
+    inventory.setInventoryPeriodEnd(LocalDate.of(2026, 3, 31));
+    inventory.setEmissions(List.of(e1, e2));
+
+    InventoryEntity previous = new InventoryEntity();
+    previous.setId(4);
+
+    when(getUserInfosService.getDepartment(1)).thenReturn(department);
+    when(inventoryRepository.findByIdAndDepartmentId(5, 10)).thenReturn(Optional.of(inventory));
+    when(emissionRepository.sumQuantityCo2eByInventoryId(5)).thenReturn(new BigDecimal("100"));
+    when(reductionRepository.sumQuantityCo2eByInventoryId(5)).thenReturn(new BigDecimal("30"));
+    when(inventoryRepository.findFirstByDepartmentIdAndTypeAndIdLessThanOrderByIdDesc(10, InventoryTypeEnum.OUTPUT, 5))
+        .thenReturn(Optional.of(previous));
+    when(emissionRepository.sumQuantityCo2eByInventoryId(4)).thenReturn(new BigDecimal("80"));
+    when(carbonPriceClient.getLatestPriceInEur()).thenReturn(new BigDecimal("70"));
+    when(exchangeRateClient.getEurToBrlRate()).thenReturn(new BigDecimal("6"));
+
+    FindInventoryAnalysisOutputDTO output = inventoryService.findInventoryAnalysis(new FindInventoryByIdInputDTO(5, 1));
+
+    assertEquals(new BigDecimal("100.00"), output.totalEmissions());
+    assertEquals(new BigDecimal("25.00"), output.changePercent());
+    assertEquals(2, output.scopes().size());
+    assertEquals("Scope 1", output.scopes().get(0).name());
+    assertEquals(new BigDecimal("75.00"), output.scopes().get(0).percentage());
+    assertEquals(new BigDecimal("25.00"), output.scopes().get(1).percentage());
+    // 30 t * 70 EUR * 6 BRL / 3 meses
+    assertEquals(4200L, output.monthlySavings());
+  }
+
+  @Test
+  @DisplayName("Should return zeros and skip external APIs when there is no data to analyse")
+  void findInventoryAnalysisWithoutData() {
+    DepartmentEntity department = new DepartmentEntity();
+    department.setId(10);
+
+    InventoryEntity inventory = new InventoryEntity();
+    inventory.setId(5);
+    inventory.setType(InventoryTypeEnum.INPUT);
+
+    when(getUserInfosService.getDepartment(1)).thenReturn(department);
+    when(inventoryRepository.findByIdAndDepartmentId(5, 10)).thenReturn(Optional.of(inventory));
+    when(emissionRepository.sumQuantityCo2eByInventoryId(5)).thenReturn(null);
+    when(reductionRepository.sumQuantityCo2eByInventoryId(5)).thenReturn(null);
+    when(inventoryRepository.findFirstByDepartmentIdAndTypeAndIdLessThanOrderByIdDesc(10, InventoryTypeEnum.INPUT, 5))
+        .thenReturn(Optional.empty());
+
+    FindInventoryAnalysisOutputDTO output = inventoryService.findInventoryAnalysis(new FindInventoryByIdInputDTO(5, 1));
+
+    assertEquals(new BigDecimal("0.00"), output.totalEmissions());
+    assertEquals(new BigDecimal("0.00"), output.changePercent());
+    assertTrue(output.scopes().isEmpty());
+    assertEquals(0L, output.monthlySavings());
+    verifyNoInteractions(carbonPriceClient, exchangeRateClient);
+  }
+
+  @Test
+  @DisplayName("Should throw NotFoundException when the analysed inventory is not in the user's department")
+  void findInventoryAnalysisNotFound() {
+    DepartmentEntity department = new DepartmentEntity();
+    department.setId(10);
+
+    when(getUserInfosService.getDepartment(1)).thenReturn(department);
+    when(inventoryRepository.findByIdAndDepartmentId(5, 10)).thenReturn(Optional.empty());
+
+    assertThrows(NotFoundException.class, () -> inventoryService.findInventoryAnalysis(new FindInventoryByIdInputDTO(5, 1)));
   }
 
   // ---------------------------------------------------------------------------
