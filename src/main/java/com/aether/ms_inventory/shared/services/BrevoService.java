@@ -48,7 +48,8 @@ public class BrevoService {
   }
 
   private void log(BrevoTemplate template, String receiver){
-    log.info("Enviando o template {} para {}", template.template(), receiver);
+    log.warn("Brevo desativado (brevo.enabled=false); e-mail do template {} para {} NAO foi enviado",
+        template.template(), receiver);
   }
 
   @JsonSerialize(using = BrevoRequestSerializer.class)

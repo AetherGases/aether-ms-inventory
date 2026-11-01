@@ -20,7 +20,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -32,6 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -48,7 +48,7 @@ class InventoryNotificationServiceTests {
   @Mock private BrevoService brevoService;
   @Mock private PushNotificationService pushNotificationService;
 
-  @InjectMocks private InventoryNotificationService service;
+  private InventoryNotificationService service;
 
   private InventoryEntity inventory;
   private EmployeeEntity owner;
@@ -56,6 +56,17 @@ class InventoryNotificationServiceTests {
 
   @BeforeEach
   void setUp() {
+    // Executor sincrono: mantem os testes deterministicos
+    service = new InventoryNotificationService(
+        inventoryRepository,
+        employeeRepository,
+        notificationConfigRepository,
+        notificationRepository,
+        brevoService,
+        pushNotificationService,
+        Runnable::run
+    );
+
     DepartmentEntity department = new DepartmentEntity();
     department.setId(5);
 
@@ -90,6 +101,12 @@ class InventoryNotificationServiceTests {
     when(notificationConfigRepository.findByUserId(userId)).thenReturn(Optional.of(config));
   }
 
+  private void givenApproverConfig(Integer userId, Boolean email, Boolean mobile) {
+    NotificationConfigDocument config = new NotificationConfigDocument(userId);
+    config.setNotify(new NotificationConfigDocument.Notify(email, mobile));
+    when(notificationConfigRepository.findByUserIdIn(any())).thenReturn(List.of(config));
+  }
+
   private void givenReviewed(InventoryStatusEnum status, String message) {
     inventory.setStatus(status);
     inventory.setStatusMessage(message);
@@ -108,7 +125,7 @@ class InventoryNotificationServiceTests {
   @DisplayName("Should always save the notification and send email when email is active")
   void notifiesApproversWithEmail() {
     givenApprovers();
-    givenConfig(2, true, false);
+    givenApproverConfig(2, true, false);
 
     service.notifyApproversPendingReview(9);
 
@@ -130,7 +147,7 @@ class InventoryNotificationServiceTests {
     NotificationConfigDocument config = new NotificationConfigDocument(2);
     config.setNotify(new NotificationConfigDocument.Notify(false, true));
     config.setTokens(List.of(new NotificationConfigDocument.Token("t1", null, null)));
-    when(notificationConfigRepository.findByUserId(2)).thenReturn(Optional.of(config));
+    when(notificationConfigRepository.findByUserIdIn(any())).thenReturn(List.of(config));
 
     service.notifyApproversPendingReview(9);
 
@@ -143,7 +160,7 @@ class InventoryNotificationServiceTests {
   @DisplayName("Should not send push when mobile is inactive")
   void skipsPushWhenMobileInactive() {
     givenApprovers();
-    givenConfig(2, true, false);
+    givenApproverConfig(2, true, false);
 
     service.notifyApproversPendingReview(9);
 
@@ -154,7 +171,7 @@ class InventoryNotificationServiceTests {
   @DisplayName("Should save the notification but not send email when email is inactive")
   void savesWithoutEmail() {
     givenApprovers();
-    givenConfig(2, false, true);
+    givenApproverConfig(2, false, true);
 
     service.notifyApproversPendingReview(9);
 
@@ -166,7 +183,7 @@ class InventoryNotificationServiceTests {
   @DisplayName("Should save the notification even when the user has no notification config")
   void savesWithoutConfig() {
     givenApprovers();
-    when(notificationConfigRepository.findByUserId(2)).thenReturn(Optional.empty());
+    when(notificationConfigRepository.findByUserIdIn(any())).thenReturn(List.of());
 
     service.notifyApproversPendingReview(9);
 
@@ -185,8 +202,12 @@ class InventoryNotificationServiceTests {
     when(inventoryRepository.findById(9)).thenReturn(Optional.of(inventory));
     when(employeeRepository.findApproversByDepartment(5, 1, "/api/inventories/pending/9/approve"))
         .thenReturn(List.of(approver, second));
-    when(notificationConfigRepository.findByUserId(2)).thenThrow(new RuntimeException("mongo down"));
-    givenConfig(3, true, false);
+    NotificationConfigDocument config1 = new NotificationConfigDocument(2);
+    config1.setNotify(new NotificationConfigDocument.Notify(true, false));
+    NotificationConfigDocument config2 = new NotificationConfigDocument(3);
+    config2.setNotify(new NotificationConfigDocument.Notify(true, false));
+    when(notificationConfigRepository.findByUserIdIn(any())).thenReturn(List.of(config1, config2));
+    doThrow(new RuntimeException("brevo down")).when(brevoService).send(any(), eq("aprovador@test.com"));
 
     service.notifyApproversPendingReview(9);
 
@@ -195,10 +216,42 @@ class InventoryNotificationServiceTests {
   }
 
   @Test
+  @DisplayName("Should query the configs of all approvers in a single batch")
+  void loadsConfigsInBatch() {
+    EmployeeEntity second = new EmployeeEntity();
+    second.setId(3);
+    second.setName("Outro");
+    second.setEmail("outro@test.com");
+
+    when(inventoryRepository.findById(9)).thenReturn(Optional.of(inventory));
+    when(employeeRepository.findApproversByDepartment(5, 1, "/api/inventories/pending/9/approve"))
+        .thenReturn(List.of(approver, second));
+    when(notificationConfigRepository.findByUserIdIn(any())).thenReturn(List.of());
+
+    service.notifyApproversPendingReview(9);
+
+    verify(notificationConfigRepository).findByUserIdIn(List.of(2, 3));
+    verify(notificationConfigRepository, never()).findByUserId(any());
+    verify(notificationRepository, times(2)).save(any());
+  }
+
+  @Test
+  @DisplayName("Should still save notifications when the batch config query fails")
+  void savesWhenBatchConfigFails() {
+    givenApprovers();
+    when(notificationConfigRepository.findByUserIdIn(any())).thenThrow(new RuntimeException("mongo down"));
+
+    service.notifyApproversPendingReview(9);
+
+    verify(notificationRepository).save(any());
+    verify(brevoService, never()).send(any(), anyString());
+  }
+
+  @Test
   @DisplayName("Should still send email when saving the notification fails")
   void sendsEmailWhenSaveFails() {
     givenApprovers();
-    givenConfig(2, true, false);
+    givenApproverConfig(2, true, false);
     when(notificationRepository.save(any())).thenThrow(new RuntimeException("mongo down"));
 
     service.notifyApproversPendingReview(9);

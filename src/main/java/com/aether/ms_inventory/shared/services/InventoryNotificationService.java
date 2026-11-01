@@ -1,6 +1,7 @@
 package com.aether.ms_inventory.shared.services;
 
 import com.aether.ms_inventory.shared.enums.InventoryStatusEnum;
+import com.aether.ms_inventory.shared.helpers.NormalizeOutput;
 import com.aether.ms_inventory.shared.helpers.interfaces.BrevoTemplate;
 import com.aether.ms_inventory.shared.helpers.templates.InventoryPendingReviewTemplate;
 import com.aether.ms_inventory.shared.helpers.templates.InventoryReviewedTemplate;
@@ -18,7 +19,11 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Executor;
+import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -32,11 +37,8 @@ public class InventoryNotificationService {
   private final NotificationRepository notificationRepository;
   private final BrevoService brevoService;
   private final PushNotificationService pushNotificationService;
+  private final Executor applicationTaskExecutor;
 
-  /**
-   * Avisa os aprovadores do departamento que um inventario esta pendente de revisao.
-   * Nunca lanca excecao: falha de notificacao nao pode afetar o processamento.
-   */
   public void notifyApproversPendingReview(Integer inventoryId) {
     try {
       inventoryRepository.findById(inventoryId).ifPresent(this::notifyApprovers);
@@ -45,10 +47,6 @@ public class InventoryNotificationService {
     }
   }
 
-  /**
-   * Avisa o dono do inventario que ele foi aprovado ou reprovado.
-   * Nunca lanca excecao: falha de notificacao nao pode afetar a revisao.
-   */
   public void notifyOwnerReviewed(InventoryEntity inventory) {
     try {
       EmployeeEntity owner = inventory.getOwnerEmployee();
@@ -73,7 +71,9 @@ public class InventoryNotificationService {
           )
       );
 
-      deliver(notification, owner.getEmail(), () -> new InventoryReviewedTemplate(
+      NotificationConfigDocument config = findConfig(owner.getId());
+
+      deliver(notification, config, owner.getEmail(), new InventoryReviewedTemplate(
           validator.getName(),
           message,
           inventory.getName(),
@@ -96,24 +96,71 @@ public class InventoryNotificationService {
         APPROVE_URI_FORMAT.formatted(inventory.getId())
     );
 
+    String ownerName = inventory.getOwnerEmployee().getName();
+
+    Map<Integer, NotificationConfigDocument> configs = loadConfigs(approvers);
+
     for (EmployeeEntity approver : approvers) {
       try {
-        NotificationDocument notification = newNotification(inventory, approver);
-        notification.setTitle("Inventário pendente de revisão");
-        notification.setDescription(
-            "O inventário \"%s\" de %s aguarda a sua revisão."
-                .formatted(inventory.getName(), inventory.getOwnerEmployee().getName())
-        );
-
-        deliver(notification, approver.getEmail(), () -> new InventoryPendingReviewTemplate(
-            approver.getName(),
-            inventory.getName(),
-            inventory.getOwnerEmployee().getName()
-        ));
+        NotificationConfigDocument config = configs.get(approver.getId());
+        applicationTaskExecutor.execute(() -> notifyApprover(inventory, ownerName, approver, config));
       } catch (RuntimeException e) {
-        log.error("Falha ao notificar o aprovador {} do inventario {}",
+        log.error("Falha ao agendar a notificacao do aprovador {} do inventario {}",
             approver.getId(), inventory.getId(), e);
       }
+    }
+  }
+
+  private NotificationConfigDocument findConfig(Integer userId) {
+    try {
+      return notificationConfigRepository.findByUserId(userId).orElse(null);
+    } catch (RuntimeException e) {
+      log.error("Falha ao buscar a configuracao de notificacao do usuario {}", userId, e);
+      return null;
+    }
+  }
+
+  /**
+   * Falha na consulta nao impede a notificacao interna; apenas e-mail e push deixam de sair.
+   */
+  private Map<Integer, NotificationConfigDocument> loadConfigs(List<EmployeeEntity> approvers) {
+    try {
+      List<Integer> userIds = approvers.stream().map(EmployeeEntity::getId).toList();
+
+      return notificationConfigRepository.findByUserIdIn(userIds).stream()
+          .collect(Collectors.toMap(
+              NotificationConfigDocument::getUserId,
+              Function.identity(),
+              (first, duplicate) -> first
+          ));
+    } catch (RuntimeException e) {
+      log.error("Falha ao buscar as configuracoes de notificacao dos aprovadores", e);
+      return Map.of();
+    }
+  }
+
+  private void notifyApprover(
+      InventoryEntity inventory,
+      String ownerName,
+      EmployeeEntity approver,
+      NotificationConfigDocument config
+  ) {
+    try {
+      NotificationDocument notification = newNotification(inventory, approver);
+      notification.setTitle("Inventário pendente de revisão");
+      notification.setDescription(
+          "O inventário \"%s\" de %s aguarda a sua revisão."
+              .formatted(inventory.getName(), ownerName)
+      );
+
+      deliver(notification, config, approver.getEmail(), new InventoryPendingReviewTemplate(
+          NormalizeOutput.name(approver.getName()),
+          NormalizeOutput.name(inventory.getName()),
+          NormalizeOutput.name(ownerName)
+      ));
+    } catch (RuntimeException e) {
+      log.error("Falha ao notificar o aprovador {} do inventario {}",
+          approver.getId(), inventory.getId(), e);
     }
   }
 
@@ -127,24 +174,17 @@ public class InventoryNotificationService {
     return notification;
   }
 
-  /**
-   * A notificacao e sempre salva no Mongo (alimenta a tela do app);
-   * o e-mail so e enviado se o usuario o tiver ativo.
-   */
   private void deliver(
       NotificationDocument notification,
+      NotificationConfigDocument config,
       String email,
-      Supplier<BrevoTemplate> template
+      BrevoTemplate template
   ) {
     try {
       notificationRepository.save(notification);
     } catch (RuntimeException e) {
       log.error("Falha ao salvar a notificacao do usuario {}", notification.getUserId(), e);
     }
-
-    NotificationConfigDocument config = notificationConfigRepository
-        .findByUserId(notification.getUserId())
-        .orElse(null);
 
     if (config == null || config.getNotify() == null) {
       return;
@@ -160,7 +200,7 @@ public class InventoryNotificationService {
     }
 
     if (Boolean.TRUE.equals(config.getNotify().getEmail())) {
-      brevoService.send(template.get(), email);
+      brevoService.send(template, email);
     }
   }
 }

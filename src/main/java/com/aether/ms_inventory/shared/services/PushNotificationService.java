@@ -24,11 +24,6 @@ import java.util.List;
 public class PushNotificationService {
   private final ObjectProvider<FirebaseMessaging> messagingProvider;
   private final MongoTemplate mongoTemplate;
-
-  /**
-   * Envia push visivel para todos os tokens do usuario. Nunca lanca excecao.
-   * Tokens invalidos sao removidos; tokens com sucesso tem lastUsedAt atualizado.
-   */
   public void send(
       Integer userId,
       List<NotificationConfigDocument.Token> tokens,

@@ -25,12 +25,6 @@ public interface EmployeeRepository extends JpaRepository<EmployeeEntity, Intege
       String email
   );
 
-  /**
-   * Aprovadores de um departamento: funcionarios ACTIVE do departamento, exceto o
-   * dono do inventario, cujo grupo de permissao possui uma permissao cujo padrao
-   * (regex) libera a URI de aprovacao informada. Segue a mesma regra de
-   * PermissionAuthorizationManager (match completo do padrao contra a URI).
-   */
   @Query(value = """
       SELECT DISTINCT e.*
       FROM employee e

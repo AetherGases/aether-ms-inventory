@@ -27,7 +27,7 @@ public class InventoryPendingReviewTemplate implements BrevoTemplate {
   @Override
   public Map<String, Object> params() {
     return Map.of(
-        "aproverName", approverName,
+        "approverName", approverName,
         "inventoryName", inventoryName,
         "ownerName", ownerName
     );
