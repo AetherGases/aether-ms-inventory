@@ -39,6 +39,14 @@ jobs:
           --health-retries 5
         command: redis-server --requirepass ci_redis_password --appendonly yes
 
+      mongo:
+        image: mongo:7
+        env:
+          MONGO_INITDB_ROOT_USERNAME: mongo
+          MONGO_INITDB_ROOT_PASSWORD: ci_mongo_password
+        ports:
+          - 27017:27017
+
     steps:
       - uses: actions/checkout@v4
 
@@ -70,6 +78,7 @@ jobs:
           REDIS_HOST: localhost
           REDIS_PORT: 6379
           REDIS_PASSWORD: ci_redis_password
+          MONGO_URL: mongodb://mongo:ci_mongo_password@localhost:27017/dbAether?authSource=admin
           CLOUDINARY_API_KEY: ${{ secrets.CI_CLOUDINARY_API_KEY }}
           CLOUDINARY_API_SECRET: ${{ secrets.CI_CLOUDINARY_API_SECRET }}
           CLOUDINARY_CLOUD_NAME: ${{ secrets.CI_CLOUDINARY_CLOUD_NAME }}

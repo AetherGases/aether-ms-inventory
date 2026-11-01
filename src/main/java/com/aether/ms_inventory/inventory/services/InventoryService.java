@@ -20,6 +20,7 @@ import com.aether.ms_inventory.shared.persistence.redis.entities.InputInventoryD
 import com.aether.ms_inventory.shared.persistence.redis.repositories.InputInventoryRepository;
 import com.aether.ms_inventory.shared.persistence.redis.repositories.InventoryGenerationQueueRepository;
 import com.aether.ms_inventory.shared.services.GetUserInfosService;
+import com.aether.ms_inventory.shared.services.InventoryNotificationService;
 import com.aether.ms_inventory.shared.workers.InventoryGenerationJob;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.jpa.domain.Specification;
@@ -40,6 +41,7 @@ public class InventoryService {
   private final EmissionRepository emissionRepository;
   private final ReductionRepository reductionRepository;
   private final GetUserInfosService getUserInfosService;
+  private final InventoryNotificationService notificationService;
 
   @Transactional
   public RegisterInventoryOutputDTO registerInventory(RegisterInventoryInputDTO input){
@@ -178,7 +180,8 @@ public class InventoryService {
   public RejectInventoryOutputDTO rejectInventory(
       RejectInventoryInputDTO input
   ){
-    DepartmentEntity department = getUserInfosService.getDepartment(input.validatorId());
+    EmployeeEntity validator = getUserInfosService.getEmployee(input.validatorId());
+    DepartmentEntity department = validator.getDepartment();
 
     InventoryEntity inventory = inventoryRepository.findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(input.id(), department.getId(), InventoryStatusEnum.UNDER_REVIEW, input.validatorId()).orElseThrow(
         () -> new NotFoundException("exception.inventory.not-found")
@@ -186,7 +189,9 @@ public class InventoryService {
 
     inventory.setStatus(InventoryStatusEnum.REJECTED);
     inventory.setStatusMessage(input.message());
+    inventory.setValidatorEmployee(validator);
     inventoryRepository.save(inventory);
+    notificationService.notifyOwnerReviewed(inventory);
 
     return InventoryMapper.convertRejectInventoryEntityToOutput(inventory);
   }
@@ -194,7 +199,8 @@ public class InventoryService {
   public ApproveInventoryOutputDTO approveInventory(
       ApproveInventoryInputDTO input
   ){
-    DepartmentEntity department = getUserInfosService.getDepartment(input.validatorId());
+    EmployeeEntity validator = getUserInfosService.getEmployee(input.validatorId());
+    DepartmentEntity department = validator.getDepartment();
 
     InventoryEntity inventory = inventoryRepository.findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(input.id(), department.getId(), InventoryStatusEnum.UNDER_REVIEW, input.validatorId()).orElseThrow(
         () -> new NotFoundException("exception.inventory.not-found")
@@ -202,7 +208,9 @@ public class InventoryService {
 
     inventory.setStatus(InventoryStatusEnum.APPROVED);
     inventory.setStatusMessage(input.message());
+    inventory.setValidatorEmployee(validator);
     inventoryRepository.save(inventory);
+    notificationService.notifyOwnerReviewed(inventory);
 
     return InventoryMapper.convertApproveInventoryEntityToOutput(inventory);
   }

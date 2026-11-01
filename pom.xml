@@ -20,6 +20,7 @@
 		<jedis.version>8.0.0</jedis.version>
 		<cloudinary.version>2.4.0</cloudinary.version>
 		<poi.version>5.4.1</poi.version>
+		<firebase-admin.version>9.11.0</firebase-admin.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -138,6 +139,23 @@
 			<groupId>org.apache.poi</groupId>
 			<artifactId>poi-ooxml</artifactId>
 			<version>${poi.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-mongodb</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>com.google.firebase</groupId>
+			<artifactId>firebase-admin</artifactId>
+			<version>${firebase-admin.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-mongodb-test</artifactId>
+			<scope>test</scope>
 		</dependency>
 	</dependencies>
 

@@ -23,6 +23,7 @@ import com.aether.ms_inventory.shared.persistence.redis.entities.InputInventoryD
 import com.aether.ms_inventory.shared.persistence.redis.repositories.InputInventoryRepository;
 import com.aether.ms_inventory.shared.persistence.redis.repositories.InventoryGenerationQueueRepository;
 import com.aether.ms_inventory.shared.services.GetUserInfosService;
+import com.aether.ms_inventory.shared.services.InventoryNotificationService;
 import com.aether.ms_inventory.shared.workers.InventoryGenerationJob;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -71,8 +72,19 @@ public class InventoryServiceTests {
   @Mock
   private GetUserInfosService getUserInfosService;
 
+  @Mock
+  private InventoryNotificationService notificationService;
+
   @InjectMocks
   private InventoryService inventoryService;
+
+  private static EmployeeEntity validatorOf(DepartmentEntity department) {
+    EmployeeEntity validator = new EmployeeEntity();
+    validator.setId(1);
+    validator.setName("Validador");
+    validator.setDepartment(department);
+    return validator;
+  }
 
   // ---------------------------------------------------------------------------
   // findMyInventoriesHistory
@@ -833,8 +845,8 @@ public class InventoryServiceTests {
     inventory.setName("Inventário Teste");
     inventory.setStatus(InventoryStatusEnum.UNDER_REVIEW);
 
-    when(getUserInfosService.getDepartment(validatorId))
-        .thenReturn(department);
+    when(getUserInfosService.getEmployee(validatorId))
+        .thenReturn(validatorOf(department));
 
     when(inventoryRepository.findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
         inventoryId,
@@ -854,10 +866,12 @@ public class InventoryServiceTests {
     assertSame(inventory, saved);
     assertEquals(InventoryStatusEnum.REJECTED, saved.getStatus());
     assertEquals(message, saved.getStatusMessage());
+    assertEquals(1, saved.getValidatorEmployee().getId());
+    verify(notificationService).notifyOwnerReviewed(saved);
 
     assertNotNull(output);
 
-    verify(getUserInfosService).getDepartment(validatorId);
+    verify(getUserInfosService).getEmployee(validatorId);
     verify(inventoryRepository).findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
         inventoryId,
         departmentId,
@@ -879,8 +893,8 @@ public class InventoryServiceTests {
     DepartmentEntity department = new DepartmentEntity();
     department.setId(departmentId);
 
-    when(getUserInfosService.getDepartment(validatorId))
-        .thenReturn(department);
+    when(getUserInfosService.getEmployee(validatorId))
+        .thenReturn(validatorOf(department));
 
     when(inventoryRepository.findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
         inventoryId,
@@ -912,8 +926,8 @@ public class InventoryServiceTests {
     DepartmentEntity department = new DepartmentEntity();
     department.setId(departmentId);
 
-    when(getUserInfosService.getDepartment(validatorId))
-        .thenReturn(department);
+    when(getUserInfosService.getEmployee(validatorId))
+        .thenReturn(validatorOf(department));
 
     when(inventoryRepository.findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
         any(),
@@ -943,7 +957,7 @@ public class InventoryServiceTests {
     RejectInventoryInputDTO input =
         new RejectInventoryInputDTO(5, validatorId, "Motivo");
 
-    when(getUserInfosService.getDepartment(validatorId))
+    when(getUserInfosService.getEmployee(validatorId))
         .thenThrow(new RuntimeException("Department not found"));
 
     assertThrows(
@@ -970,8 +984,8 @@ public class InventoryServiceTests {
     InventoryEntity inventory = new InventoryEntity();
     inventory.setStatus(InventoryStatusEnum.UNDER_REVIEW);
 
-    when(getUserInfosService.getDepartment(validatorId))
-        .thenReturn(department);
+    when(getUserInfosService.getEmployee(validatorId))
+        .thenReturn(validatorOf(department));
 
     when(inventoryRepository.findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
         inventoryId,
@@ -1013,8 +1027,8 @@ public class InventoryServiceTests {
     inventory.setName("Inventário Teste");
     inventory.setStatus(InventoryStatusEnum.UNDER_REVIEW);
 
-    when(getUserInfosService.getDepartment(validatorId))
-        .thenReturn(department);
+    when(getUserInfosService.getEmployee(validatorId))
+        .thenReturn(validatorOf(department));
 
     when(inventoryRepository.findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
         inventoryId,
@@ -1034,10 +1048,12 @@ public class InventoryServiceTests {
     assertSame(inventory, saved);
     assertEquals(InventoryStatusEnum.APPROVED, saved.getStatus());
     assertEquals(message, saved.getStatusMessage());
+    assertEquals(1, saved.getValidatorEmployee().getId());
+    verify(notificationService).notifyOwnerReviewed(saved);
 
     assertNotNull(output);
 
-    verify(getUserInfosService).getDepartment(validatorId);
+    verify(getUserInfosService).getEmployee(validatorId);
     verify(inventoryRepository).findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
         inventoryId,
         departmentId,
@@ -1059,8 +1075,8 @@ public class InventoryServiceTests {
     DepartmentEntity department = new DepartmentEntity();
     department.setId(departmentId);
 
-    when(getUserInfosService.getDepartment(validatorId))
-        .thenReturn(department);
+    when(getUserInfosService.getEmployee(validatorId))
+        .thenReturn(validatorOf(department));
 
     when(inventoryRepository.findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
         inventoryId,
@@ -1092,8 +1108,8 @@ public class InventoryServiceTests {
     DepartmentEntity department = new DepartmentEntity();
     department.setId(departmentId);
 
-    when(getUserInfosService.getDepartment(validatorId))
-        .thenReturn(department);
+    when(getUserInfosService.getEmployee(validatorId))
+        .thenReturn(validatorOf(department));
 
     when(inventoryRepository.findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
         any(),
@@ -1123,7 +1139,7 @@ public class InventoryServiceTests {
     ApproveInventoryInputDTO input =
         new ApproveInventoryInputDTO(5, validatorId, "Motivo");
 
-    when(getUserInfosService.getDepartment(validatorId))
+    when(getUserInfosService.getEmployee(validatorId))
         .thenThrow(new RuntimeException("Department not found"));
 
     assertThrows(
@@ -1150,8 +1166,8 @@ public class InventoryServiceTests {
     InventoryEntity inventory = new InventoryEntity();
     inventory.setStatus(InventoryStatusEnum.UNDER_REVIEW);
 
-    when(getUserInfosService.getDepartment(validatorId))
-        .thenReturn(department);
+    when(getUserInfosService.getEmployee(validatorId))
+        .thenReturn(validatorOf(department));
 
     when(inventoryRepository.findByIdAndDepartmentIdAndStatusAndOwnerEmployeeIdNot(
         inventoryId,

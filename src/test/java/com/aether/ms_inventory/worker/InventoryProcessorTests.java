@@ -3,6 +3,7 @@ package com.aether.ms_inventory.worker;
 import com.aether.ms_inventory.shared.clients.AekoClient;
 import com.aether.ms_inventory.shared.dto.output.AekoReportOutputDTO;
 import com.aether.ms_inventory.shared.dto.request.AekoReportRequestDTO;
+import com.aether.ms_inventory.shared.services.InventoryNotificationService;
 import com.aether.ms_inventory.shared.services.InventoryProcessingPersistence;
 import com.aether.ms_inventory.shared.services.RemoteFileDownloader;
 import com.aether.ms_inventory.shared.services.XlsxMarkdownConverter;
@@ -33,6 +34,7 @@ class InventoryProcessorTests {
   @Mock private RemoteFileDownloader fileDownloader;
   @Mock private XlsxMarkdownConverter markdownConverter;
   @Mock private AekoClient aekoClient;
+  @Mock private InventoryNotificationService notificationService;
 
   @InjectMocks private InventoryProcessor processor;
 
@@ -86,5 +88,6 @@ class InventoryProcessorTests {
     assertEquals(context.categories(), sent.categories());
 
     verify(persistence).saveResult(1, response);
+    verify(notificationService).notifyApproversPendingReview(1);
   }
 }
