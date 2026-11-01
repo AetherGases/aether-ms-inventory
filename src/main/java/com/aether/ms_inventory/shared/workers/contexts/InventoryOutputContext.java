@@ -1,4 +1,4 @@
-package com.aether.ms_inventory.shared.workers;
+package com.aether.ms_inventory.shared.workers.contexts;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;

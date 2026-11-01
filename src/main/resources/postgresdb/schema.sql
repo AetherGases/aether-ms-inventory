@@ -869,9 +869,6 @@ $$;
 COMMENT ON FUNCTION fn_ghg_complete_declaration(integer) IS
     'Returns the 84 manual cells of the complete GHG emission declaration (frames 1.1, 1.2, 1.3, 1.5) for one enterprise. Eligible facts are APPROVED inventories whose period is 1 Jan–31 Dec of the calendar year before CURRENT_DATE. valor is SUM(quantity_co2e) in tCO2e, or NULL when no fact matches. Does not return frame 1.4, spreadsheet automatic totals, reductions, or biogenic removals. Raises 22023 when enterprise_id is null and 23503 when the enterprise does not exist.';
 
-REVOKE ALL ON FUNCTION fn_ghg_complete_declaration(integer) FROM PUBLIC;
-
-GRANT EXECUTE ON FUNCTION fn_ghg_complete_declaration(integer) TO aether_app, aether_auditor, aether_admin;
 -- Registers a validated emission and returns its identifier.
 CREATE OR REPLACE PROCEDURE sp_register_emission(
     OUT p_emission_id integer,
