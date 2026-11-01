@@ -4,7 +4,6 @@ import com.aether.ms_inventory.shared.enums.InventoryStatusEnum;
 import com.aether.ms_inventory.shared.enums.InventoryTypeEnum;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.AddressEntity;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.DepartmentEntity;
-import com.aether.ms_inventory.shared.persistence.postgres.entities.EmissionEntity;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.EmployeeEntity;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.EnterpriseEntity;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.InventoryEntity;
@@ -12,6 +11,7 @@ import com.aether.ms_inventory.shared.persistence.postgres.entities.ReductionEnt
 import com.aether.ms_inventory.shared.persistence.postgres.entities.StorageFileEntity;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.UnitEntity;
 import com.aether.ms_inventory.shared.persistence.postgres.repositories.InventoryRepository;
+import com.aether.ms_inventory.shared.persistence.postgres.repositories.custom.GhgDeclarationRepository;
 import com.aether.ms_inventory.shared.persistence.postgres.specifications.InventorySpecification;
 import com.aether.ms_inventory.shared.workers.InventoryOutputContext;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +26,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class InventoryGenerationPersistence {
   private final InventoryRepository inventoryRepository;
+  private final GhgDeclarationRepository ghgDeclarationRepository;
 
   @Transactional
   public boolean markProcessing(Integer inventoryId) {
@@ -80,11 +81,7 @@ public class InventoryGenerationPersistence {
         enterprise == null || enterprise.getUnits() == null ? List.of() : enterprise.getUnits().stream()
             .map(unit -> toUnitData(unit, enterprise))
             .toList(),
-        departmentInputInventories.stream()
-            .filter(inputInventory -> inputInventory.getEmissions() != null)
-            .flatMap(inputInventory -> inputInventory.getEmissions().stream())
-            .map(InventoryGenerationPersistence::toEmissionData)
-            .toList(),
+        enterprise == null ? List.of() : ghgDeclarationRepository.findCompleteDeclaration(enterprise.getId()),
         departmentInputInventories.stream()
             .filter(inputInventory -> inputInventory.getReductions() != null)
             .flatMap(inputInventory -> inputInventory.getReductions().stream())
@@ -202,22 +199,6 @@ public class InventoryGenerationPersistence {
     }
 
     builder.append(part);
-  }
-
-  private static InventoryOutputContext.EmissionData toEmissionData(EmissionEntity emission) {
-    return new InventoryOutputContext.EmissionData(
-        emission.getScope() == null ? null : emission.getScope().getName(),
-        emission.getCategory() == null ? null : emission.getCategory().getName(),
-        emission.getCategory() == null || emission.getCategory().getClassification() == null
-            ? null : emission.getCategory().getClassification().name(),
-        emission.getGas() == null ? null : emission.getGas().getName(),
-        emission.getGas() == null ? null : emission.getGas().getFormula(),
-        emission.getGas() != null && Boolean.TRUE.equals(emission.getGas().getBiogenic()),
-        emission.getGas() == null ? null : emission.getGas().getGwp(),
-        emission.getQuantityCo2e(),
-        emission.getSupplierDataPercentage(),
-        emission.getMethodologyDescription()
-    );
   }
 
   private static InventoryOutputContext.ReductionData toReductionData(ReductionEntity reduction) {

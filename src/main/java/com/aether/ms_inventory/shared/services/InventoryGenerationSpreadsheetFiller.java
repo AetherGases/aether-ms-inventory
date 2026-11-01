@@ -18,6 +18,7 @@ import java.io.InputStream;
 import java.math.BigDecimal;
 import java.text.Normalizer;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -40,6 +41,7 @@ public class InventoryGenerationSpreadsheetFiller {
       "D18", "D19", "G19", "F19", "H19", "D20", "G20", "F20", "H20", "D21", "F21"
   };
 
+  // As linhas são indexadas pelos códigos devolvidos por fn_ghg_complete_declaration (coluna "codigo").
   private static final Map<String, Integer> SCOPE_I_GAS_ROWS = rows(
       "CO2", 8, "CH4", 9, "N2O", 10, "HFCs", 11, "HFC-23", 12, "HFC-32", 13, "HFC-41", 14,
       "HFC-125", 15, "HFC-134", 16, "HFC-134a", 17, "HFC-143", 18, "HFC-143a", 19,
@@ -47,13 +49,12 @@ public class InventoryGenerationSpreadsheetFiller {
       "HFC-236ea", 25, "HFC-236fa", 26, "HFC-245ca", 27, "HFC-245fa", 28, "HFC-365mfc", 29,
       "HFC-43-10mee", 30, "PFCs", 31, "PFC-14", 32, "PFC-116", 33, "PFC-218", 34,
       "PFC-318", 35, "PFC-3-1-10", 36, "PFC-4-1-12", 37, "PFC-5-1-14", 38, "PFC-9-1-18", 39,
-      "Trifluorometil pentafluoreto de enxofre", 40, "Perfluorociclopropano", 41, "SF6", 42, "NF3", 43
+      "trifluorometil_pentafluoreto_enxofre", 40, "perfluorociclopropano", 41, "SF6", 42, "NF3", 43
   );
 
   private static final Map<String, Integer> SCOPE_I_CATEGORY_ROWS = rows(
-      "Combustão móvel", 8, "Combustão estacionária", 9, "Emissões fugitivas", 10,
-      "Processos industriais", 11, "Atividades agrícolas e mudanças no uso do solo", 12,
-      "Resíduos (resíduos sólidos + efluentes)", 13
+      "combustao_movel", 8, "combustao_estacionaria", 9, "emissoes_fugitivas", 10,
+      "processos_industriais", 11, "atividades_agricolas_e_mudancas_uso_solo", 12, "residuos", 13
   );
 
   private static final Map<String, Integer> SCOPE_II_III_GAS_ROWS = rows(
@@ -61,33 +62,27 @@ public class InventoryGenerationSpreadsheetFiller {
   );
 
   private static final Map<String, Integer> SCOPE_II_CATEGORY_ROWS = rows(
-      "Compra de Energia Elétrica, pelo critério de localização geográfica", 8,
-      "Compra de Energia Térmica", 9,
-      "Perdas na Transmissão e Distribuição", 10
+      "energia_eletrica_localizacao", 8, "energia_termica", 9, "perdas_transmissao_distribuicao", 10
   );
 
   private static final Map<String, Integer> SCOPE_III_CATEGORY_ROWS = rows(
-      "Transporte e distribuição (upstream)", 8,
-      "Resíduos sólidos gerados na operação", 9,
-      "Efluentes líquidos gerados", 10,
-      "Viagens a negócios", 11,
-      "Deslocamento  (casa-trabalho)", 12,
-      "Transporte e distribuição (downstream)", 13,
-      "Outras emissões de Escopo III", 14
+      "transporte_distribuicao_upstream", 8, "residuos_solidos_operacao", 9, "efluentes_liquidos", 10,
+      "viagens_a_negocios", 11, "deslocamento_casa_trabalho", 12,
+      "transporte_distribuicao_downstream", 13, "outras_escopo_iii", 14
   );
 
   // Layout de cada quadro da Declaração Completa. CO2 biogênico não entra nos totais por gás/categoria:
   // nos Escopos I e II vai para o Quadro 1.5 (célula única) e no Escopo III para a coluna P, na linha da categoria.
   private static final DeclarationScope SCOPE_I = new DeclarationScope(
-      "C", SCOPE_I_GAS_ROWS, "E", SCOPE_I_CATEGORY_ROWS, "J19", null
+      "C", SCOPE_I_GAS_ROWS, "E", SCOPE_I_CATEGORY_ROWS, "J19", null, "J20", null
   );
 
   private static final DeclarationScope SCOPE_II = new DeclarationScope(
-      "H", SCOPE_II_III_GAS_ROWS, "J", SCOPE_II_CATEGORY_ROWS, "K19", null
+      "H", SCOPE_II_III_GAS_ROWS, "J", SCOPE_II_CATEGORY_ROWS, "K19", null, "K20", null
   );
 
   private static final DeclarationScope SCOPE_III = new DeclarationScope(
-      "M", SCOPE_II_III_GAS_ROWS, "O", SCOPE_III_CATEGORY_ROWS, null, "P"
+      "M", SCOPE_II_III_GAS_ROWS, "O", SCOPE_III_CATEGORY_ROWS, null, "P", null, "Q"
   );
 
   private record DeclarationScope(
@@ -96,8 +91,38 @@ public class InventoryGenerationSpreadsheetFiller {
       String categoryColumn,
       Map<String, Integer> categoryRows,
       String biogenicCell,
-      String biogenicCategoryColumn
-  ) {}
+      String biogenicCategoryColumn,
+      String removalCell,
+      String removalCategoryColumn
+  ) {
+    // Todas as células de entrada do quadro; vazias, o template as destaca em vermelho.
+    List<String> inputCellAddresses() {
+      List<String> addresses = new ArrayList<>();
+
+      gasRows.values().forEach(row -> addresses.add(gasColumn + row));
+      categoryRows.values().forEach(row -> addresses.add(categoryColumn + row));
+
+      if (biogenicCell != null) {
+        addresses.add(biogenicCell);
+      }
+
+      if (removalCell != null) {
+        addresses.add(removalCell);
+      }
+
+      categoryRows.values().forEach(row -> {
+        if (biogenicCategoryColumn != null) {
+          addresses.add(biogenicCategoryColumn + row);
+        }
+
+        if (removalCategoryColumn != null) {
+          addresses.add(removalCategoryColumn + row);
+        }
+      });
+
+      return addresses;
+    }
+  }
 
   private final String templatePath;
 
@@ -190,120 +215,78 @@ public class InventoryGenerationSpreadsheetFiller {
 
   private void fillDeclaracaoCompleta(Workbook workbook, InventoryOutputContext context) {
     Sheet sheet = workbook.getSheet(SHEET_DECLARACAO_COMPLETA);
-    List<InventoryOutputContext.EmissionData> emissions = context.emissions();
+    List<InventoryOutputContext.DeclarationCellData> cells = context.declarationCells();
 
     if (sheet == null) {
       log.warn("Aba '{}' não encontrada no template", SHEET_DECLARACAO_COMPLETA);
       return;
     }
 
-    if (emissions == null) {
-      return;
+    // Gases/categorias sem emissão devem constar como 0 (e não vazios, que o template pinta de vermelho).
+    Map<String, BigDecimal> valuesByCellAddress = new LinkedHashMap<>();
+
+    for (DeclarationScope scope : List.of(SCOPE_I, SCOPE_II, SCOPE_III)) {
+      scope.inputCellAddresses().forEach(address -> valuesByCellAddress.put(address, BigDecimal.ZERO));
     }
 
-    Map<String, BigDecimal> totalsByCellAddress = new LinkedHashMap<>();
+    for (InventoryOutputContext.DeclarationCellData cell
+        : cells == null ? List.<InventoryOutputContext.DeclarationCellData>of() : cells) {
+      String address = resolveCellAddress(cell);
 
-    for (InventoryOutputContext.EmissionData emission : emissions) {
-      if (emission.quantityCo2e() == null) {
+      if (address == null) {
+        log.warn("Célula da Declaração Completa não mapeada (quadro={}, eixo={}, código={})",
+            cell.frame(), cell.axis(), cell.code());
         continue;
       }
 
-      DeclarationScope scope = resolveScope(emission.scope());
-
-      if (scope == null) {
-        log.warn("Escopo '{}' não reconhecido; emissão ignorada na Declaração Completa", emission.scope());
-        continue;
-      }
-
-      if (emission.biogenic()) {
-        accumulateBiogenic(totalsByCellAddress, scope, emission);
-      } else {
-        accumulateEmission(totalsByCellAddress, scope, emission);
+      if (cell.value() != null) {
+        valuesByCellAddress.put(address, cell.value());
       }
     }
 
-    totalsByCellAddress.forEach((address, value) -> setCellValue(sheet, address, value));
+    valuesByCellAddress.forEach((address, value) -> setCellValue(sheet, address, value));
   }
 
-  private static void accumulateEmission(
-      Map<String, BigDecimal> totals,
-      DeclarationScope scope,
-      InventoryOutputContext.EmissionData emission
-  ) {
-    Integer gasRow = scope.gasRows().get(normalize(emission.gasFormula()));
-
-    if (gasRow == null) {
-      log.warn("Gás '{}' não encontrado na Declaração Completa para o {}; emissão ignorada no total por gás",
-          emission.gasFormula(), emission.scope());
-    } else {
-      accumulate(totals, scope.gasColumn() + gasRow, emission.quantityCo2e());
-    }
-
-    Integer categoryRow = resolveCategoryRow(scope.categoryRows(), emission);
-
-    if (categoryRow == null) {
-      log.warn("Categoria '{}' não encontrada na Declaração Completa para o {}; emissão ignorada no total por categoria",
-          emission.category(), emission.scope());
-    } else {
-      accumulate(totals, scope.categoryColumn() + categoryRow, emission.quantityCo2e());
-    }
-  }
-
-  private static void accumulateBiogenic(
-      Map<String, BigDecimal> totals,
-      DeclarationScope scope,
-      InventoryOutputContext.EmissionData emission
-  ) {
-    if (scope.biogenicCell() != null) {
-      accumulate(totals, scope.biogenicCell(), emission.quantityCo2e());
-      return;
-    }
-
-    Integer categoryRow = resolveCategoryRow(scope.categoryRows(), emission);
-
-    if (categoryRow == null) {
-      log.warn("Categoria '{}' não encontrada na Declaração Completa para o {}; emissão biogênica ignorada",
-          emission.category(), emission.scope());
-      return;
-    }
-
-    accumulate(totals, scope.biogenicCategoryColumn() + categoryRow, emission.quantityCo2e());
-  }
-
-  private static Integer resolveCategoryRow(
-      Map<String, Integer> categoryRows,
-      InventoryOutputContext.EmissionData emission
-  ) {
-    Integer categoryRow = categoryRows.get(normalize(emission.category()));
-
-    if (categoryRow != null) {
-      return categoryRow;
-    }
-
-    if (emission.categoryClassification() == null || emission.category() == null) {
+  // Traduz (quadro, eixo, código) de fn_ghg_complete_declaration para o endereço da célula no template.
+  private static String resolveCellAddress(InventoryOutputContext.DeclarationCellData cell) {
+    if (cell.frame() == null || cell.axis() == null || cell.code() == null) {
       return null;
     }
 
-    String normalizedCategory = normalize(emission.category());
-    boolean isTransportCategory = normalizedCategory.contains("transporte")
-        && normalizedCategory.contains("distribuicao");
+    boolean summaryFrame = "1.5".equals(cell.frame());
+    DeclarationScope scope = switch (cell.frame()) {
+      case "1.1" -> SCOPE_I;
+      case "1.2" -> SCOPE_II;
+      case "1.3" -> SCOPE_III;
+      case "1.5" -> switch (cell.code()) {
+        case "ESCOPO_I" -> SCOPE_I;
+        case "ESCOPO_II" -> SCOPE_II;
+        default -> null;
+      };
+      default -> null;
+    };
 
-    if (!isTransportCategory) {
+    if (scope == null) {
       return null;
     }
 
-    String classificationSuffix = "UPSTREAM".equalsIgnoreCase(emission.categoryClassification())
-        ? "upstream" : "DOWNSTREAM".equalsIgnoreCase(emission.categoryClassification()) ? "downstream" : null;
+    String code = normalize(cell.code());
 
-    if (classificationSuffix == null) {
-      return null;
-    }
-
-    return categoryRows.get(normalize("Transporte e distribuição (" + classificationSuffix + ")"));
+    return switch (cell.axis()) {
+      case "GAS" -> addressOf(scope.gasColumn(), scope.gasRows().get(code));
+      case "CATEGORIA" -> addressOf(scope.categoryColumn(), scope.categoryRows().get(code));
+      case "BIOGENICO_EMISSAO" -> summaryFrame
+          ? scope.biogenicCell()
+          : addressOf(scope.biogenicCategoryColumn(), scope.categoryRows().get(code));
+      case "BIOGENICO_REMOCAO" -> summaryFrame
+          ? scope.removalCell()
+          : addressOf(scope.removalCategoryColumn(), scope.categoryRows().get(code));
+      default -> null;
+    };
   }
 
-  private static void accumulate(Map<String, BigDecimal> totals, String cellAddress, BigDecimal value) {
-    totals.merge(cellAddress, value, BigDecimal::add);
+  private static String addressOf(String column, Integer row) {
+    return column == null || row == null ? null : column + row;
   }
 
   private static String formatStreetAddress(InventoryOutputContext.AddressData address) {
@@ -329,24 +312,6 @@ public class InventoryGenerationSpreadsheetFiller {
     }
 
     builder.append(part);
-  }
-
-  private static DeclarationScope resolveScope(String scopeName) {
-    if (scopeName == null) {
-      return null;
-    }
-
-    String normalized = normalize(scopeName)
-        .replace("escopo", "")
-        .replace("scope", "")
-        .trim();
-
-    return switch (normalized) {
-      case "iii", "3" -> SCOPE_III;
-      case "ii", "2" -> SCOPE_II;
-      case "i", "1" -> SCOPE_I;
-      default -> null;
-    };
   }
 
   private static String normalize(String value) {

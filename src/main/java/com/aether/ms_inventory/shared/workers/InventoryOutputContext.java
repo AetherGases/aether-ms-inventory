@@ -9,7 +9,7 @@ public record InventoryOutputContext(
     EnterpriseData enterprise,
     ResponsibleData responsible,
     List<UnitData> units,
-    List<EmissionData> emissions,
+    List<DeclarationCellData> declarationCells,
     List<ReductionData> reductions
 ) {
 
@@ -61,17 +61,12 @@ public record InventoryOutputContext(
       String type
   ) {}
 
-  public record EmissionData(
-      String scope,
-      String category,
-      String categoryClassification,
-      String gas,
-      String gasFormula,
-      boolean biogenic,
-      BigDecimal gwp,
-      BigDecimal quantityCo2e,
-      BigDecimal supplierDataPercentage,
-      String methodology
+  // Célula da Declaração Completa devolvida por fn_ghg_complete_declaration.
+  public record DeclarationCellData(
+      String frame,
+      String axis,
+      String code,
+      BigDecimal value
   ) {}
 
   public record ReductionData(
