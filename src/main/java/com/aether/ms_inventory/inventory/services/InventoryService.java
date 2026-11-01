@@ -3,11 +3,14 @@ package com.aether.ms_inventory.inventory.services;
 import com.aether.ms_inventory.inventory.dto.input.*;
 import com.aether.ms_inventory.inventory.dto.output.*;
 import com.aether.ms_inventory.inventory.mappers.InventoryMapper;
+import com.aether.ms_inventory.shared.clients.CarbonPriceClient;
+import com.aether.ms_inventory.shared.clients.ExchangeRateClient;
 import com.aether.ms_inventory.shared.enums.InventoryStatusEnum;
 import com.aether.ms_inventory.shared.enums.InventoryTypeEnum;
 import com.aether.ms_inventory.shared.exceptions.BadRequestException;
 import com.aether.ms_inventory.shared.exceptions.NotFoundException;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.DepartmentEntity;
+import com.aether.ms_inventory.shared.persistence.postgres.entities.EmissionEntity;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.EmployeeEntity;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.InventoryEntity;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.StorageFileEntity;
@@ -29,7 +32,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 @Service
 @RequiredArgsConstructor
@@ -42,6 +49,8 @@ public class InventoryService {
   private final ReductionRepository reductionRepository;
   private final GetUserInfosService getUserInfosService;
   private final InventoryNotificationService notificationService;
+  private final CarbonPriceClient carbonPriceClient;
+  private final ExchangeRateClient exchangeRateClient;
 
   @Transactional
   public RegisterInventoryOutputDTO registerInventory(RegisterInventoryInputDTO input){
@@ -295,6 +304,27 @@ public class InventoryService {
   }
 
   @Transactional(readOnly = true)
+  public FindInventoryAnalysisOutputDTO findInventoryAnalysis(
+      FindInventoryByIdInputDTO input
+  ){
+    DepartmentEntity department = getUserInfosService.getDepartment(input.userId());
+
+    InventoryEntity inventory = inventoryRepository.findByIdAndDepartmentId(input.id(), department.getId()).orElseThrow(
+        () -> new NotFoundException("exception.inventory.not-found")
+    );
+
+    BigDecimal totalEmissions = roundToTwoDecimals(emissionRepository.sumQuantityCo2eByInventoryId(inventory.getId()));
+    BigDecimal totalReductions = roundToTwoDecimals(reductionRepository.sumQuantityCo2eByInventoryId(inventory.getId()));
+
+    return new FindInventoryAnalysisOutputDTO(
+        totalEmissions,
+        calculateChangePercent(inventory, department.getId(), totalEmissions),
+        calculateScopesPercentages(inventory, totalEmissions),
+        calculateMonthlySavings(inventory, totalReductions)
+    );
+  }
+
+  @Transactional(readOnly = true)
   public FindEnterpriseInfoOutputDTO findEnterpriseInfo(
       FindEnterpriseInfoInputDTO input
   ){
@@ -326,6 +356,75 @@ public class InventoryService {
         totalEmissions,
         calculateReducedPercentage(totalReductions, totalEmissions)
     );
+  }
+
+  private BigDecimal calculateChangePercent(
+      InventoryEntity inventory,
+      Integer departmentId,
+      BigDecimal totalEmissions
+  ) {
+    BigDecimal zero = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+
+    return inventoryRepository
+        .findFirstByDepartmentIdAndTypeAndIdLessThanOrderByIdDesc(departmentId, inventory.getType(), inventory.getId())
+        .map(previous -> roundToTwoDecimals(emissionRepository.sumQuantityCo2eByInventoryId(previous.getId())))
+        .filter(previousTotal -> previousTotal.signum() > 0)
+        .map(previousTotal -> totalEmissions
+            .subtract(previousTotal)
+            .multiply(BigDecimal.valueOf(100))
+            .divide(previousTotal, 2, RoundingMode.HALF_UP))
+        .orElse(zero);
+  }
+
+  private List<FindInventoryAnalysisOutputDTO.Scope> calculateScopesPercentages(
+      InventoryEntity inventory,
+      BigDecimal totalEmissions
+  ) {
+    if (inventory.getEmissions() == null || totalEmissions.signum() == 0) {
+      return List.of();
+    }
+
+    Map<String, BigDecimal> totalByScope = new TreeMap<>();
+
+    for (EmissionEntity emission : inventory.getEmissions()) {
+      if (emission.getScope() == null || emission.getQuantityCo2e() == null) continue;
+
+      totalByScope.merge(emission.getScope().getName(), emission.getQuantityCo2e(), BigDecimal::add);
+    }
+
+    return totalByScope.entrySet().stream()
+        .map(entry -> new FindInventoryAnalysisOutputDTO.Scope(
+            entry.getKey(),
+            entry.getValue()
+                .multiply(BigDecimal.valueOf(100))
+                .divide(totalEmissions, 2, RoundingMode.HALF_UP)
+        ))
+        .toList();
+  }
+
+  private Long calculateMonthlySavings(InventoryEntity inventory, BigDecimal totalReductions) {
+    if (totalReductions.signum() == 0) {
+      return 0L;
+    }
+
+    BigDecimal priceInBrl = carbonPriceClient.getLatestPriceInEur()
+        .multiply(exchangeRateClient.getEurToBrlRate());
+
+    return totalReductions
+        .multiply(priceInBrl)
+        .divide(BigDecimal.valueOf(periodInMonths(inventory)), 0, RoundingMode.HALF_UP)
+        .longValue();
+  }
+
+  private long periodInMonths(InventoryEntity inventory) {
+    LocalDate start = inventory.getInventoryPeriodStart();
+    LocalDate end = inventory.getInventoryPeriodEnd();
+
+    if (start == null || end == null || end.isBefore(start)) {
+      return 1;
+    }
+
+    return Math.max(1, ChronoUnit.MONTHS.between(start, end.plusDays(1)));
   }
 
   private BigDecimal calculateReducedPercentage(BigDecimal reductions, BigDecimal emissions) {

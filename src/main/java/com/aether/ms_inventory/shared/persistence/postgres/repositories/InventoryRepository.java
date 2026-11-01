@@ -1,6 +1,7 @@
 package com.aether.ms_inventory.shared.persistence.postgres.repositories;
 
 import com.aether.ms_inventory.shared.enums.InventoryStatusEnum;
+import com.aether.ms_inventory.shared.enums.InventoryTypeEnum;
 import com.aether.ms_inventory.shared.persistence.postgres.entities.InventoryEntity;
 import com.aether.ms_inventory.shared.persistence.postgres.repositories.custom.interfaces.InventoryRepositoryCustom;
 import jakarta.persistence.LockModeType;
@@ -29,4 +30,9 @@ public interface InventoryRepository extends JpaRepository<InventoryEntity, Inte
   );
   Optional<InventoryEntity> findByIdAndDepartmentId(Integer id, Integer departmentId);
   Optional<InventoryEntity> findByIdAndOwnerEmployeeId(Integer id, Integer ownerEmployeeId);
+  Optional<InventoryEntity> findFirstByDepartmentIdAndTypeAndIdLessThanOrderByIdDesc(
+      Integer departmentId,
+      InventoryTypeEnum type,
+      Integer id
+  );
 }
