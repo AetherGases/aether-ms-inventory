@@ -117,12 +117,9 @@ public class InventoryService {
   public FindMyInventoriesHistoryOutputDTO findMyInventoriesHistory(
       FindMyInventoriesHistoryInputDTO input
   ) {
-    DepartmentEntity department = getUserInfosService.getDepartment(input.userId());
-
     Specification<InventoryEntity> spec = Specification
         .where(InventorySpecification.withName(input.name()))
         .and(InventorySpecification.withStatus(input.status()))
-        .and(InventorySpecification.withDepartment(department.getId()))
         .and(InventorySpecification.withOwnerEmployeeId(input.userId()));
 
     List<InventoryEntity> inventories = inventoryRepository.findWithPagination(
