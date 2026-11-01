@@ -3,6 +3,7 @@ package com.aether.ms_inventory.shared.workers;
 import com.aether.ms_inventory.shared.clients.AekoClient;
 import com.aether.ms_inventory.shared.dto.output.AekoReportOutputDTO;
 import com.aether.ms_inventory.shared.dto.request.AekoReportRequestDTO;
+import com.aether.ms_inventory.shared.services.InventoryNotificationService;
 import com.aether.ms_inventory.shared.services.InventoryProcessingPersistence;
 import com.aether.ms_inventory.shared.services.RemoteFileDownloader;
 import com.aether.ms_inventory.shared.services.XlsxMarkdownConverter;
@@ -21,6 +22,7 @@ public class InventoryProcessor {
   private final RemoteFileDownloader fileDownloader;
   private final XlsxMarkdownConverter markdownConverter;
   private final AekoClient aekoClient;
+  private final InventoryNotificationService notificationService;
 
   public void process(Integer inventoryId) {
     Optional<InventoryProcessingContext> loaded = persistence.loadContext(inventoryId);
@@ -46,5 +48,6 @@ public class InventoryProcessor {
     AekoReportOutputDTO response = aekoClient.generateReport(request);
 
     persistence.saveResult(inventoryId, response);
+    notificationService.notifyApproversPendingReview(inventoryId);
   }
 }

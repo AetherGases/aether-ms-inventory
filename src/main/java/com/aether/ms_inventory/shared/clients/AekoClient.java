@@ -55,7 +55,6 @@ public class AekoClient {
     try {
       String requestBody = objectMapper.writeValueAsString(request);
 
-      System.out.println(requestBody);
       responseBody = restClient.post()
           .uri(REPORT_PATH)
           .contentType(MediaType.APPLICATION_JSON)
@@ -82,7 +81,6 @@ public class AekoClient {
       throw new InventoryProcessingException("A IA retornou uma resposta vazia", true, HttpStatus.EXPECTATION_FAILED);
 
     try {
-      System.out.println(responseBody);
       return objectMapper.readValue(responseBody,AekoReportOutputDTO.class);
     } catch (JsonProcessingException e) {
       throw new InventoryProcessingException("A IA retornou uma resposta inválida", e, true, HttpStatus.EXPECTATION_FAILED);

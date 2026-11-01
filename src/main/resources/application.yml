@@ -29,12 +29,29 @@ spring:
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD}
 
+  mongodb:
+    uri: ${MONGO_URL}
+    auto-index-creation: true
+
   jpa:
     hibernate:
       ddl-auto: validate
     show-sql: true
     open-in-view: true
 
+
+brevo:
+  enabled: ${BREVO_ENABLED:false}
+  api:
+    key: ${BREVO_API_KEY:}
+    url: ${BREVO_API_URL:https://api.brevo.com/v3/smtp/email}
+  sender:
+    email: ${BREVO_SENDER_EMAIL:}
+    name: ${BREVO_SENDER_NAME:Aether}
+
+firebase:
+  enabled: ${FIREBASE_ENABLED:false}
+  credentials: ${FIREBASE_CREDENTIALS:}
 
 server:
   port: ${API_PORT:8080}
