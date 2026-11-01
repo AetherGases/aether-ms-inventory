@@ -6,6 +6,7 @@ import com.aether.ms_inventory.shared.dto.request.AekoReportRequestDTO;
 import com.aether.ms_inventory.shared.services.InventoryProcessingPersistence;
 import com.aether.ms_inventory.shared.services.RemoteFileDownloader;
 import com.aether.ms_inventory.shared.services.XlsxMarkdownConverter;
+import com.aether.ms_inventory.shared.workers.contexts.InventoryProcessingContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

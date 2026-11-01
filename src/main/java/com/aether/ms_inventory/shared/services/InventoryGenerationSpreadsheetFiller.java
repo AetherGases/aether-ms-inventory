@@ -1,6 +1,6 @@
 package com.aether.ms_inventory.shared.services;
 
-import com.aether.ms_inventory.shared.workers.InventoryOutputContext;
+import com.aether.ms_inventory.shared.workers.contexts.InventoryOutputContext;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
@@ -35,13 +35,10 @@ public class InventoryGenerationSpreadsheetFiller {
   private static final String DECLARACAO_COMPLETA_LABEL = "Declaração Completa";
   private static final int UNIDADES_FIRST_ROW = 4;
 
-  // Seção "INFORMAÇÕES DA DIREÇÃO DA ORGANIZAÇÃO": não há dado correspondente no banco
-  // (ResponsibleData modela apenas um responsável, não um segundo contato da direção).
   private static final String[] DIRECAO_ORGANIZACAO_CELLS = {
       "D18", "D19", "G19", "F19", "H19", "D20", "G20", "F20", "H20", "D21", "F21"
   };
 
-  // As linhas são indexadas pelos códigos devolvidos por fn_ghg_complete_declaration (coluna "codigo").
   private static final Map<String, Integer> SCOPE_I_GAS_ROWS = rows(
       "CO2", 8, "CH4", 9, "N2O", 10, "HFCs", 11, "HFC-23", 12, "HFC-32", 13, "HFC-41", 14,
       "HFC-125", 15, "HFC-134", 16, "HFC-134a", 17, "HFC-143", 18, "HFC-143a", 19,
@@ -70,9 +67,6 @@ public class InventoryGenerationSpreadsheetFiller {
       "viagens_a_negocios", 11, "deslocamento_casa_trabalho", 12,
       "transporte_distribuicao_downstream", 13, "outras_escopo_iii", 14
   );
-
-  // Layout de cada quadro da Declaração Completa. CO2 biogênico não entra nos totais por gás/categoria:
-  // nos Escopos I e II vai para o Quadro 1.5 (célula única) e no Escopo III para a coluna P, na linha da categoria.
   private static final DeclarationScope SCOPE_I = new DeclarationScope(
       "C", SCOPE_I_GAS_ROWS, "E", SCOPE_I_CATEGORY_ROWS, "J19", null, "J20", null
   );
@@ -95,7 +89,6 @@ public class InventoryGenerationSpreadsheetFiller {
       String removalCell,
       String removalCategoryColumn
   ) {
-    // Todas as células de entrada do quadro; vazias, o template as destaca em vermelho.
     List<String> inputCellAddresses() {
       List<String> addresses = new ArrayList<>();
 
@@ -222,7 +215,6 @@ public class InventoryGenerationSpreadsheetFiller {
       return;
     }
 
-    // Gases/categorias sem emissão devem constar como 0 (e não vazios, que o template pinta de vermelho).
     Map<String, BigDecimal> valuesByCellAddress = new LinkedHashMap<>();
 
     for (DeclarationScope scope : List.of(SCOPE_I, SCOPE_II, SCOPE_III)) {
@@ -247,7 +239,6 @@ public class InventoryGenerationSpreadsheetFiller {
     valuesByCellAddress.forEach((address, value) -> setCellValue(sheet, address, value));
   }
 
-  // Traduz (quadro, eixo, código) de fn_ghg_complete_declaration para o endereço da célula no template.
   private static String resolveCellAddress(InventoryOutputContext.DeclarationCellData cell) {
     if (cell.frame() == null || cell.axis() == null || cell.code() == null) {
       return null;

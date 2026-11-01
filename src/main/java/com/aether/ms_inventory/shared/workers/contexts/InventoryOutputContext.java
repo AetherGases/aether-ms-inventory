@@ -61,7 +61,6 @@ public record InventoryOutputContext(
       String type
   ) {}
 
-  // Célula da Declaração Completa devolvida por fn_ghg_complete_declaration.
   public record DeclarationCellData(
       String frame,
       String axis,

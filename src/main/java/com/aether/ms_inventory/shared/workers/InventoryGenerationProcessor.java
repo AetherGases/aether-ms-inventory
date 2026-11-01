@@ -6,6 +6,7 @@ import com.aether.ms_inventory.shared.persistence.postgres.repositories.StorageF
 import com.aether.ms_inventory.shared.services.CloudinaryUploadService;
 import com.aether.ms_inventory.shared.services.InventoryGenerationPersistence;
 import com.aether.ms_inventory.shared.services.InventoryGenerationSpreadsheetFiller;
+import com.aether.ms_inventory.shared.workers.contexts.InventoryOutputContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

@@ -1,7 +1,7 @@
 package com.aether.ms_inventory.worker;
 
 import com.aether.ms_inventory.shared.services.InventoryGenerationSpreadsheetFiller;
-import com.aether.ms_inventory.shared.workers.InventoryOutputContext;
+import com.aether.ms_inventory.shared.workers.contexts.InventoryOutputContext;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.Row;

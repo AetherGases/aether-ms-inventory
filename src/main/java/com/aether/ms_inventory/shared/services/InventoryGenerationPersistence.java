@@ -13,7 +13,7 @@ import com.aether.ms_inventory.shared.persistence.postgres.entities.UnitEntity;
 import com.aether.ms_inventory.shared.persistence.postgres.repositories.InventoryRepository;
 import com.aether.ms_inventory.shared.persistence.postgres.repositories.custom.GhgDeclarationRepository;
 import com.aether.ms_inventory.shared.persistence.postgres.specifications.InventorySpecification;
-import com.aether.ms_inventory.shared.workers.InventoryOutputContext;
+import com.aether.ms_inventory.shared.workers.contexts.InventoryOutputContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
