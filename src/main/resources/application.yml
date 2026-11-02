@@ -5,6 +5,10 @@ spring:
   config:
     import: optional:file:.env[.properties]
 
+  web:
+    # Sem Accept-Language o Spring usaria o locale da JVM; o padrão do sistema é português
+    locale: pt-BR
+
   messages:
     basename: messages/messages
     encoding: UTF-8
