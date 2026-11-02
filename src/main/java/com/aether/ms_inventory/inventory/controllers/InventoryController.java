@@ -102,6 +102,28 @@ public class InventoryController implements InventoryControllerDocs {
   }
 
   @Override
+  @GetMapping("/history")
+  public ResponseEntity<FindManyReviewedInventoriesOutputDTO> findInventoriesHistory(
+      @ModelAttribute
+      @Valid
+      FindMyInventoriesQueryParamsDTO query,
+
+      Authentication authentication
+  ){
+    CustomUserDetails user = (CustomUserDetails) authentication.getPrincipal();
+
+    return new ResponseEntity<>(
+        this.inventoryService.findInventoriesHistory(
+            InventoryMapper.convertFindMyInventoriesQueryToInput(
+                user.getId(),
+                query
+            )
+        ),
+        HttpStatus.OK
+    );
+  }
+
+  @Override
   @GetMapping("/mine/last")
   public ResponseEntity<LastInventoryOutputDTO> findMyLastInventory(
       Authentication authentication
