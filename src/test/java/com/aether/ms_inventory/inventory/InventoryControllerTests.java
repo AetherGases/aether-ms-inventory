@@ -887,6 +887,87 @@ class InventoryControllerTests {
   }
 
   // ---------------------------------------------------------------------------
+  // GET /api/inventories/history
+  // ---------------------------------------------------------------------------
+
+  @Test
+  @DisplayName("History: should return my INPUT inventories of any status and department, with author")
+  void findHistoryMine() throws Exception {
+
+    createInventory("Inventário A");
+    createInventory("Inventário B", employeeActive, otherDepartment, InventoryStatusEnum.PROCESSING_FAILED);
+    createInventory("Inventário C", employeeActive, department, InventoryStatusEnum.APPROVED);
+
+    mockMvc.perform(
+            get("/api/inventories/history")
+                .header("Authorization", "Bearer " + generateJwt(employeeActive))
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.inventories.length()").value(3))
+        .andExpect(jsonPath("$.inventories[0].name").value("Inventário C"))
+        .andExpect(jsonPath("$.inventories[0].author").value("Teste"))
+        .andExpect(jsonPath("$.totalCount").value(3));
+  }
+
+  @Test
+  @DisplayName("History: should not return OUTPUT nor other people's inventories for a user without inventory:analysis")
+  void findHistoryOnlyMineInput() throws Exception {
+
+    createInventory("Inventário Meu");
+    createInventory("Inventário Gerado", employeeActive, InventoryStatusEnum.UNDER_REVIEW, InventoryTypeEnum.OUTPUT);
+    createInventory("Inventário Colega", employeeOther);
+    createReviewedInventory("Inventário Validado Por Mim", employeeOther, employeeActive, InventoryStatusEnum.APPROVED);
+
+    mockMvc.perform(
+            get("/api/inventories/history")
+                .header("Authorization", "Bearer " + generateJwt(employeeActive))
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.inventories.length()").value(1))
+        .andExpect(jsonPath("$.inventories[0].name").value("Inventário Meu"))
+        .andExpect(jsonPath("$.totalCount").value(1));
+  }
+
+  @Test
+  @DisplayName("History: should filter by name and status and paginate with the total")
+  void findHistoryFiltersAndPagination() throws Exception {
+
+    createInventory("Inventário A");
+    createInventory("Inventário B");
+    createInventory("Inventário C", employeeActive, department, InventoryStatusEnum.APPROVED);
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(get("/api/inventories/history").param("name", "inventário a").header("Authorization", "Bearer " + token))
+        .andExpect(jsonPath("$.inventories.length()").value(1))
+        .andExpect(jsonPath("$.totalCount").value(1));
+
+    mockMvc.perform(get("/api/inventories/history").param("status", "APPROVED").header("Authorization", "Bearer " + token))
+        .andExpect(jsonPath("$.inventories.length()").value(1))
+        .andExpect(jsonPath("$.totalCount").value(1));
+
+    mockMvc.perform(get("/api/inventories/history").param("take", "1").header("Authorization", "Bearer " + token))
+        .andExpect(jsonPath("$.inventories.length()").value(1))
+        .andExpect(jsonPath("$.totalCount").value(3));
+
+    mockMvc.perform(get("/api/inventories/history").param("skip", "2").param("take", "2").header("Authorization", "Bearer " + token))
+        .andExpect(jsonPath("$.inventories.length()").value(1))
+        .andExpect(jsonPath("$.totalCount").value(3));
+  }
+
+  @Test
+  @DisplayName("History: should return 400 when take is greater than maximum")
+  void findHistoryWithInvalidTakeMax() throws Exception {
+
+    mockMvc.perform(
+            get("/api/inventories/history")
+                .param("take", String.valueOf(com.aether.ms_inventory.shared.AetherConstants.MAX_TAKE + 1))
+                .header("Authorization", "Bearer " + generateJwt(employeeActive))
+        )
+        .andExpect(status().isBadRequest());
+  }
+
+  // ---------------------------------------------------------------------------
   // POST /api/inventories
   // ---------------------------------------------------------------------------
 

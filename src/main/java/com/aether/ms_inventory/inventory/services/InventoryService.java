@@ -120,8 +120,7 @@ public class InventoryService {
     Specification<InventoryEntity> spec = Specification
         .where(InventorySpecification.withName(input.name()))
         .and(InventorySpecification.withStatus(input.status()))
-        .and(InventorySpecification.withOwnerEmployeeId(input.userId()))
-        .and(InventorySpecification.withType(InventoryTypeEnum.INPUT));
+        .and(mineSpec(input.userId()));
 
     List<InventoryEntity> inventories = inventoryRepository.findWithPagination(
         spec,
@@ -135,6 +134,34 @@ public class InventoryService {
         inventories,
         count
     );
+  }
+
+  @Transactional(readOnly = true)
+  public FindManyReviewedInventoriesOutputDTO findInventoriesHistory(
+      FindMyInventoriesHistoryInputDTO input
+  ) {
+    Specification<InventoryEntity> spec = Specification
+        .where(InventorySpecification.withName(input.name()))
+        .and(InventorySpecification.withStatus(input.status()))
+        .and(mineSpec(input.userId()));
+
+    List<InventoryEntity> inventories = inventoryRepository.findWithPagination(
+        spec,
+        input.skip(),
+        input.take()
+    );
+
+    return InventoryMapper.convertFindManyReviewedEntitiesToOutput(
+        inventories,
+        inventoryRepository.count(spec)
+    );
+  }
+
+  // "Meus": dono = usuário, tipo INPUT, qualquer departamento e status.
+  private Specification<InventoryEntity> mineSpec(Integer userId) {
+    return Specification
+        .where(InventorySpecification.withOwnerEmployeeId(userId))
+        .and(InventorySpecification.withType(InventoryTypeEnum.INPUT));
   }
 
   @Transactional(readOnly = true)
