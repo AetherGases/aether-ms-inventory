@@ -69,7 +69,7 @@ public interface InventoryControllerDocs {
 
   @Operation(
       summary = "Retorna o histórico de relatórios do usuário logado.",
-      description = "Retorna, de forma paginada, os relatórios enviados (INPUT) pelo usuário logado, em qualquer departamento e status. O totalCount é o número exibido no card (use take=1 para obtê-lo).",
+      description = "Retorna, de forma paginada, os relatórios enviados (INPUT) pelo usuário logado, em qualquer departamento e status. Para quem possui a permissão inventory:analysis, inclui também os relatórios UNDER_REVIEW do departamento do usuário e os APPROVED/REJECTED validados por ele, em qualquer departamento. O totalCount é o número exibido no card (use take=1 para obtê-lo).",
       tags = {"Inventories"},
       responses = {
           @ApiResponse(description = "Success", responseCode = "200", content =

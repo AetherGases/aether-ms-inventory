@@ -117,7 +117,9 @@ public class InventoryController implements InventoryControllerDocs {
             InventoryMapper.convertFindMyInventoriesQueryToInput(
                 user.getId(),
                 query
-            )
+            ),
+            authentication.getAuthorities().stream()
+                .anyMatch(authority -> "inventory:analysis".equals(authority.getAuthority()))
         ),
         HttpStatus.OK
     );
