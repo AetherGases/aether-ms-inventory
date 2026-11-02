@@ -157,7 +157,7 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(HttpMessageNotReadableException.class)
   public ResponseEntity<ExceptionOutputDTO> handleUnreadableBody(HttpMessageNotReadableException ex) {
     ExceptionOutputDTO error = new ExceptionOutputDTO(
-        "Corpo da requisição inválido ou malformado",
+        messageService.getMessage("exception.request-body.unreadable"),
         HttpStatus.BAD_REQUEST
     );
     return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
