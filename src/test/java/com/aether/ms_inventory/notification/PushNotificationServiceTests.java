@@ -18,6 +18,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -48,7 +49,7 @@ class PushNotificationServiceTests {
   void sendsToEveryToken() throws Exception {
     when(messagingProvider.getIfAvailable()).thenReturn(messaging);
 
-    service.send(7, tokens, "Titulo", "Corpo");
+    service.send(7, tokens, "Titulo", "Corpo", Map.of());
 
     verify(messaging, times(2)).send(any(Message.class));
     verify(mongoTemplate, times(2)).updateFirst(
@@ -60,7 +61,7 @@ class PushNotificationServiceTests {
   void skipsWhenFirebaseDisabled() {
     when(messagingProvider.getIfAvailable()).thenReturn(null);
 
-    service.send(7, tokens, "Titulo", "Corpo");
+    service.send(7, tokens, "Titulo", "Corpo", Map.of());
 
     verifyNoInteractions(messaging, mongoTemplate);
   }
@@ -68,8 +69,8 @@ class PushNotificationServiceTests {
   @Test
   @DisplayName("Should do nothing when the user has no tokens")
   void skipsWithoutTokens() {
-    service.send(7, List.of(), "Titulo", "Corpo");
-    service.send(7, null, "Titulo", "Corpo");
+    service.send(7, List.of(), "Titulo", "Corpo", Map.of());
+    service.send(7, null, "Titulo", "Corpo", Map.of());
 
     verifyNoInteractions(messagingProvider, messaging, mongoTemplate);
   }
@@ -83,7 +84,7 @@ class PushNotificationServiceTests {
     when(unregistered.getMessagingErrorCode()).thenReturn(MessagingErrorCode.UNREGISTERED);
     when(messaging.send(any(Message.class))).thenThrow(unregistered).thenReturn("id");
 
-    service.send(7, tokens, "Titulo", "Corpo");
+    service.send(7, tokens, "Titulo", "Corpo", Map.of());
 
     verify(messaging, times(2)).send(any(Message.class));
     // 1 pull do token invalido + 1 atualizacao de lastUsedAt do token valido
@@ -100,7 +101,7 @@ class PushNotificationServiceTests {
     when(unavailable.getMessagingErrorCode()).thenReturn(MessagingErrorCode.UNAVAILABLE);
     when(messaging.send(any(Message.class))).thenThrow(unavailable);
 
-    service.send(7, tokens, "Titulo", "Corpo");
+    service.send(7, tokens, "Titulo", "Corpo", Map.of());
 
     verify(messaging, times(2)).send(any(Message.class));
     verify(mongoTemplate, never()).updateFirst(

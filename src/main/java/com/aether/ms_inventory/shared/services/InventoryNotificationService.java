@@ -30,6 +30,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class InventoryNotificationService {
   static final String APPROVE_URI_FORMAT = "/api/inventories/pending/%d/approve";
+  /** Chave do FCM data que o app le para abrir o inventario ao tocar no push. */
+  static final String REPORT_ID_KEY = "reportId";
 
   private final InventoryRepository inventoryRepository;
   private final EmployeeRepository employeeRepository;
@@ -164,6 +166,14 @@ public class InventoryNotificationService {
     }
   }
 
+  private Map<String, String> pushData(NotificationDocument notification) {
+    if (notification.getInventory() == null || notification.getInventory().getId() == null) {
+      return Map.of();
+    }
+
+    return Map.of(REPORT_ID_KEY, String.valueOf(notification.getInventory().getId()));
+  }
+
   private NotificationDocument newNotification(InventoryEntity inventory, EmployeeEntity receiver) {
     NotificationDocument notification = new NotificationDocument();
     notification.setUserId(receiver.getId());
@@ -195,7 +205,8 @@ public class InventoryNotificationService {
           notification.getUserId(),
           config.getTokens(),
           notification.getTitle(),
-          notification.getDescription()
+          notification.getDescription(),
+          pushData(notification)
       );
     }
 

@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -28,7 +29,8 @@ public class PushNotificationService {
       Integer userId,
       List<NotificationConfigDocument.Token> tokens,
       String title,
-      String body
+      String body,
+      Map<String, String> data
   ) {
     try {
       if (tokens == null || tokens.isEmpty()) {
@@ -43,7 +45,7 @@ public class PushNotificationService {
       }
 
       for (NotificationConfigDocument.Token token : tokens) {
-        sendToToken(messaging, userId, token.getToken(), title, body);
+        sendToToken(messaging, userId, token.getToken(), title, body, data);
       }
     } catch (RuntimeException e) {
       log.error("Falha ao enviar push para o usuario {}", userId, e);
@@ -55,13 +57,19 @@ public class PushNotificationService {
       Integer userId,
       String token,
       String title,
-      String body
+      String body,
+      Map<String, String> data
   ) {
     try {
-      messaging.send(Message.builder()
+      Message.Builder message = Message.builder()
           .setToken(token)
-          .setNotification(Notification.builder().setTitle(title).setBody(body).build())
-          .build());
+          .setNotification(Notification.builder().setTitle(title).setBody(body).build());
+
+      if (data != null && !data.isEmpty()) {
+        message.putAllData(data);
+      }
+
+      messaging.send(message.build());
 
       mongoTemplate.updateFirst(
           tokenQuery(userId, token),
