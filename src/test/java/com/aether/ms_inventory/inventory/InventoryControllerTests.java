@@ -1025,14 +1025,22 @@ class InventoryControllerTests {
     inventoryRepository.save(otherDeptValidated);
     createReviewedInventory("Aprovado Por Outro", employeeOther, employeeActive, InventoryStatusEnum.APPROVED);
     createReviewedInventory("Recusado Por Outro", employeeOther, employeeActive, InventoryStatusEnum.REJECTED);
+    createInventory("Pendente Colega", employeeOther);
+    createInventory("Meu Relatorio", employeeManager);
 
+    // created_at defaults to CURRENT_TIMESTAMP per committed save, so creation order is newest-first reversed
     mockMvc.perform(
             get("/api/inventories/history")
                 .header("Authorization", "Bearer " + generateJwt(employeeManager))
         )
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.inventories.length()").value(3))
-        .andExpect(jsonPath("$.totalCount").value(3));
+        .andExpect(jsonPath("$.inventories.length()").value(5))
+        .andExpect(jsonPath("$.totalCount").value(5))
+        .andExpect(jsonPath("$.inventories[0].name").value("Meu Relatorio"))
+        .andExpect(jsonPath("$.inventories[1].name").value("Pendente Colega"))
+        .andExpect(jsonPath("$.inventories[2].name").value("Aprovado Por Mim Outro Depto"))
+        .andExpect(jsonPath("$.inventories[3].name").value("Recusado Por Mim"))
+        .andExpect(jsonPath("$.inventories[4].name").value("Aprovado Por Mim"));
   }
 
   @Test
