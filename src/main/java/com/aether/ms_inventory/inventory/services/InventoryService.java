@@ -303,13 +303,9 @@ public class InventoryService {
   public CountInventoriesOutputDTO countInventories(
       CountInventoriesInputDTO input
   ){
-    DepartmentEntity department = getUserInfosService.getDepartment(input.userId());
-
-    Integer departmentId = department != null ? department.getId() : null;
-
     Specification<InventoryEntity> reviewedSpec = Specification
         .where(InventorySpecification.withValidatorEmployeeId(input.userId()))
-        .and(InventorySpecification.withDepartment(departmentId))
+        .and(InventorySpecification.withType(InventoryTypeEnum.INPUT))
         .and(InventorySpecification.withReviewed());
 
     Specification<InventoryEntity> submittedSpec = Specification

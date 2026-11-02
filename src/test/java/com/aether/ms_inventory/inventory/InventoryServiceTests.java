@@ -1369,12 +1369,6 @@ public class InventoryServiceTests {
 
     CountInventoriesInputDTO input = new CountInventoriesInputDTO(userId);
 
-    DepartmentEntity department = new DepartmentEntity();
-    department.setId(10);
-
-    when(getUserInfosService.getDepartment(userId))
-        .thenReturn(department);
-
     when(inventoryRepository.count(any(Specification.class)))
         .thenReturn(3L)
         .thenReturn(8L);
@@ -1384,7 +1378,6 @@ public class InventoryServiceTests {
     assertEquals(3L, output.reviewedCount());
     assertEquals(8L, output.submittedCount());
 
-    verify(getUserInfosService).getDepartment(userId);
     verify(inventoryRepository, times(2)).count(any(Specification.class));
   }
 
@@ -1395,12 +1388,6 @@ public class InventoryServiceTests {
 
     CountInventoriesInputDTO input = new CountInventoriesInputDTO(userId);
 
-    DepartmentEntity department = new DepartmentEntity();
-    department.setId(10);
-
-    when(getUserInfosService.getDepartment(userId))
-        .thenReturn(department);
-
     when(inventoryRepository.count(any(Specification.class)))
         .thenReturn(0L);
 
@@ -1411,14 +1398,11 @@ public class InventoryServiceTests {
   }
 
   @Test
-  @DisplayName("Should not throw when the user department is null")
-  void countInventoriesNullDepartment() {
+  @DisplayName("Should not look up the user department")
+  void countInventoriesDoesNotUseDepartment() {
     Integer userId = 1;
 
     CountInventoriesInputDTO input = new CountInventoriesInputDTO(userId);
-
-    when(getUserInfosService.getDepartment(userId))
-        .thenReturn(null);
 
     when(inventoryRepository.count(any(Specification.class)))
         .thenReturn(0L);
@@ -1429,6 +1413,7 @@ public class InventoryServiceTests {
     assertEquals(0L, output.submittedCount());
 
     verify(inventoryRepository, times(2)).count(any(Specification.class));
+    verifyNoInteractions(getUserInfosService);
   }
 
   // ---------------------------------------------------------------------------
