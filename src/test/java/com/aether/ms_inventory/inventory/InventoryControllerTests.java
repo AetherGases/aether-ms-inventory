@@ -2642,6 +2642,52 @@ class InventoryControllerTests {
   }
 
   @Test
+  @DisplayName("Should not count reviewed inventories that are not of type INPUT")
+  void countInventoriesReviewedIgnoresNonInputType() throws Exception {
+
+    InventoryEntity output = createReviewedInventory(
+        "Inventário Saída",
+        employeeOther,
+        employeeActive,
+        InventoryStatusEnum.APPROVED
+    );
+    output.setType(InventoryTypeEnum.OUTPUT);
+    inventoryRepository.save(output);
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/count")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.reviewedCount").value(0));
+  }
+
+  @Test
+  @DisplayName("Should count reviewed inventories regardless of their department")
+  void countInventoriesReviewedIgnoresDepartment() throws Exception {
+
+    InventoryEntity other = createReviewedInventory(
+        "Inventário Outro Departamento",
+        employeeOther,
+        employeeActive,
+        InventoryStatusEnum.APPROVED
+    );
+    other.setDepartment(otherDepartment);
+    inventoryRepository.save(other);
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/count")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.reviewedCount").value(1));
+  }
+
+  @Test
   @DisplayName("Should not count reviewed inventories that are still processing")
   void countInventoriesReviewedExcludesProcessing() throws Exception {
 
