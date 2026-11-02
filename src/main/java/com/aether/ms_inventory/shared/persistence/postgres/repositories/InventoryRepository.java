@@ -35,4 +35,5 @@ public interface InventoryRepository extends JpaRepository<InventoryEntity, Inte
       InventoryTypeEnum type,
       Integer id
   );
+  long countByStatusAndDepartmentUnitEnterpriseId(InventoryStatusEnum status, Integer enterpriseId);
 }
