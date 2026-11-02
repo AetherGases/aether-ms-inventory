@@ -152,7 +152,8 @@ class InventoryNotificationServiceTests {
     service.notifyApproversPendingReview(9);
 
     verify(pushNotificationService).send(
-        eq(2), eq(config.getTokens()), eq("Inventário pendente de revisão"), anyString());
+        eq(2), eq(config.getTokens()), eq("Inventário pendente de revisão"), anyString(),
+        eq(Map.of("reportId", "9")));
     verify(brevoService, never()).send(any(), anyString());
   }
 
@@ -164,7 +165,7 @@ class InventoryNotificationServiceTests {
 
     service.notifyApproversPendingReview(9);
 
-    verify(pushNotificationService, never()).send(any(), any(), any(), any());
+    verify(pushNotificationService, never()).send(any(), any(), any(), any(), any());
   }
 
   @Test
