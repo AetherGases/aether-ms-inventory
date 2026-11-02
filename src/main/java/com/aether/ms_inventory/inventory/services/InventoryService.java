@@ -120,7 +120,8 @@ public class InventoryService {
     Specification<InventoryEntity> spec = Specification
         .where(InventorySpecification.withName(input.name()))
         .and(InventorySpecification.withStatus(input.status()))
-        .and(InventorySpecification.withOwnerEmployeeId(input.userId()));
+        .and(InventorySpecification.withOwnerEmployeeId(input.userId()))
+        .and(InventorySpecification.withType(InventoryTypeEnum.INPUT));
 
     List<InventoryEntity> inventories = inventoryRepository.findWithPagination(
         spec,

@@ -157,6 +157,14 @@ class InventoryControllerTests {
 
     departmentRepository.save(department);
 
+    otherDepartment = new DepartmentEntity(
+        OTHER_DEPARTMENT_NAME,
+        "outro departamento de teste",
+        unit
+    );
+
+    departmentRepository.save(otherDepartment);
+
     permission = new PermissionEntity(
         PERMISSION_NAME,
         null,
@@ -685,6 +693,68 @@ class InventoryControllerTests {
         .andExpect(jsonPath("$.inventories.length()").value(1))
         .andExpect(jsonPath("$.inventories[0].name").value("Inventário Meu"))
         .andExpect(jsonPath("$.totalCount").value(1));
+  }
+
+  @Test
+  @DisplayName("Should not return my OUTPUT inventories")
+  void findMyInventoriesExcludesOutput() throws Exception {
+
+    createInventory("Inventário Entrada");
+    createInventory("Inventário Gerado", employeeActive, InventoryStatusEnum.UNDER_REVIEW, InventoryTypeEnum.OUTPUT);
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/mine")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.inventories.length()").value(1))
+        .andExpect(jsonPath("$.inventories[0].name").value("Inventário Entrada"))
+        .andExpect(jsonPath("$.totalCount").value(1));
+  }
+
+  @Test
+  @DisplayName("Should return my inventories created in another department")
+  void findMyInventoriesFromAnotherDepartment() throws Exception {
+
+    createInventory("Inventário Depto Atual");
+    createInventory("Inventário Depto Anterior", employeeActive, otherDepartment, InventoryStatusEnum.APPROVED);
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/mine")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.inventories.length()").value(2))
+        .andExpect(jsonPath("$.totalCount").value(2));
+  }
+
+  @Test
+  @DisplayName("Should have mine totalCount equal to count submittedCount")
+  void findMyInventoriesTotalCountMatchesSubmittedCount() throws Exception {
+
+    createInventory("Inventário A");
+    createInventory("Inventário B", employeeActive, otherDepartment, InventoryStatusEnum.PROCESSING_FAILED);
+    createInventory("Inventário Gerado", employeeActive, InventoryStatusEnum.UNDER_REVIEW, InventoryTypeEnum.OUTPUT);
+
+    String token = generateJwt(employeeActive);
+
+    mockMvc.perform(
+            get("/api/inventories/mine")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.totalCount").value(2));
+
+    mockMvc.perform(
+            get("/api/inventories/count")
+                .header("Authorization", "Bearer " + token)
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.submittedCount").value(2));
   }
 
   @Test
