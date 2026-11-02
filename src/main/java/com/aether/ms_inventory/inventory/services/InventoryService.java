@@ -138,12 +138,30 @@ public class InventoryService {
 
   @Transactional(readOnly = true)
   public FindManyReviewedInventoriesOutputDTO findInventoriesHistory(
-      FindMyInventoriesHistoryInputDTO input
+      FindMyInventoriesHistoryInputDTO input,
+      boolean isManager
   ) {
+    Specification<InventoryEntity> visible = mineSpec(input.userId());
+
+    if (isManager) {
+      DepartmentEntity department = getUserInfosService.getDepartment(input.userId());
+
+      if (department != null) {
+        visible = visible.or(Specification
+            .where(InventorySpecification.withDepartment(department.getId()))
+            .and(InventorySpecification.withType(InventoryTypeEnum.INPUT))
+            .and(InventorySpecification.withStatus(InventoryStatusEnum.UNDER_REVIEW)));
+      }
+
+      visible = visible.or(Specification
+          .where(InventorySpecification.withValidatorEmployeeId(input.userId()))
+          .and(InventorySpecification.withReviewed()));
+    }
+
     Specification<InventoryEntity> spec = Specification
         .where(InventorySpecification.withName(input.name()))
         .and(InventorySpecification.withStatus(input.status()))
-        .and(mineSpec(input.userId()));
+        .and(visible);
 
     List<InventoryEntity> inventories = inventoryRepository.findWithPagination(
         spec,

@@ -49,6 +49,9 @@ class InventoryControllerTests {
   private static final String UNIT_CNPJ = "89307523000199";
   private static final String EMPLOYEE_ACTIVE_EMAIL = "test@test1.com";
   private static final String EMPLOYEE_OTHER_EMAIL = "test@test2.com";
+  private static final String EMPLOYEE_MANAGER_EMAIL = "test@test3.com";
+  private static final String MANAGER_GROUP_NAME = "Gestor Teste Histórico";
+  private static final String ANALYSIS_PERMISSION_NAME = "inventory:analysis";
   private static final String PERMISSION_GROUP_NAME = "Funcionário";
   private static final String PERMISSION_NAME = "Relatórios";
   private static final String DEPARTMENT_NAME = "test depto";
@@ -60,6 +63,7 @@ class InventoryControllerTests {
   private static final String GAS_FORMULA = "TESTGAS-INVENTORY";
   private static final String EMPLOYEE_ACTIVE_CPF = "12345678912";
   private static final String EMPLOYEE_OTHER_CPF = "52998224725";
+  private static final String EMPLOYEE_MANAGER_CPF = "11144477735";
 
   @Autowired
   private MockMvc mockMvc;
@@ -123,6 +127,9 @@ class InventoryControllerTests {
 
   private EmployeeEntity employeeActive;
   private EmployeeEntity employeeOther;
+  private EmployeeEntity employeeManager;
+  private PermissionEntity analysisPermission;
+  private PermissionGroupEntity managerGroup;
   private PermissionEntity permission;
   private final List<Integer> inventoriesIds = new ArrayList<>();
   private final List<Integer> storageFileIds = new ArrayList<>();
@@ -202,6 +209,28 @@ class InventoryControllerTests {
 
     employeeOther = employeeRepository.save(employeeOther);
 
+    analysisPermission = new PermissionEntity(
+        ANALYSIS_PERMISSION_NAME,
+        null,
+        "^.*/inventories/history.*$"
+    );
+    permissionRepository.save(analysisPermission);
+
+    managerGroup = new PermissionGroupEntity(MANAGER_GROUP_NAME);
+    managerGroup.setPermissions(List.of(permission, analysisPermission));
+    permissionGroupRepository.save(managerGroup);
+
+    employeeManager = employeeRepository.save(new EmployeeEntity(
+        EMPLOYEE_MANAGER_CPF,
+        "Gestor Teste",
+        EMPLOYEE_MANAGER_EMAIL,
+        "senhaHash",
+        "11966665555",
+        EmployeeStatusEnum.ACTIVE,
+        managerGroup,
+        department
+    ));
+
     scope = new ScopeEntity();
     scope.setName(SCOPE_NAME);
     scope = scopeRepository.save(scope);
@@ -226,7 +255,7 @@ class InventoryControllerTests {
   private void cleanupLeftoverTestData() {
 
     List<EmployeeEntity> leftoverEmployees = employeeRepository.findAll().stream()
-        .filter(e -> EMPLOYEE_ACTIVE_EMAIL.equals(e.getEmail()) || EMPLOYEE_OTHER_EMAIL.equals(e.getEmail()))
+        .filter(e -> EMPLOYEE_ACTIVE_EMAIL.equals(e.getEmail()) || EMPLOYEE_OTHER_EMAIL.equals(e.getEmail()) || EMPLOYEE_MANAGER_EMAIL.equals(e.getEmail()))
         .toList();
 
     List<Integer> leftoverEmployeeIds = leftoverEmployees.stream()
@@ -276,12 +305,12 @@ class InventoryControllerTests {
     }
 
     permissionGroupRepository.findAll().stream()
-        .filter(pg -> PERMISSION_GROUP_NAME.equals(pg.getDescription()))
+        .filter(pg -> PERMISSION_GROUP_NAME.equals(pg.getDescription()) || MANAGER_GROUP_NAME.equals(pg.getDescription()))
         .map(PermissionGroupEntity::getId)
         .forEach(permissionGroupRepository::deleteById);
 
     permissionRepository.findAll().stream()
-        .filter(p -> PERMISSION_NAME.equals(p.getName()))
+        .filter(p -> PERMISSION_NAME.equals(p.getName()) || ANALYSIS_PERMISSION_NAME.equals(p.getName()))
         .map(PermissionEntity::getId)
         .forEach(permissionRepository::deleteById);
 
@@ -320,12 +349,24 @@ class InventoryControllerTests {
       categoryRepository.deleteById(reductionCategory.getId());
     }
 
+    if (employeeManager != null && employeeManager.getId() != null) {
+      employeeRepository.deleteById(employeeManager.getId());
+    }
+
     if (employeeOther != null && employeeOther.getId() != null) {
       employeeRepository.deleteById(employeeOther.getId());
     }
 
     if (employeeActive != null && employeeActive.getId() != null) {
       employeeRepository.deleteById(employeeActive.getId());
+    }
+
+    if (managerGroup != null && managerGroup.getId() != null) {
+      permissionGroupRepository.deleteById(managerGroup.getId());
+    }
+
+    if (analysisPermission != null && analysisPermission.getId() != null) {
+      permissionRepository.deleteById(analysisPermission.getId());
     }
 
     if (permissionGroup != null && permissionGroup.getId() != null) {
@@ -953,6 +994,103 @@ class InventoryControllerTests {
     mockMvc.perform(get("/api/inventories/history").param("skip", "2").param("take", "2").header("Authorization", "Bearer " + token))
         .andExpect(jsonPath("$.inventories.length()").value(1))
         .andExpect(jsonPath("$.totalCount").value(3));
+  }
+
+  @Test
+  @DisplayName("History: manager should see UNDER_REVIEW of own department, not of another department")
+  void findHistoryManagerPendingOfOwnDepartment() throws Exception {
+
+    createInventory("Pendente do Depto", employeeOther);
+    createInventory("Pendente Outro Depto", employeeOther, otherDepartment, InventoryStatusEnum.UNDER_REVIEW);
+
+    mockMvc.perform(
+            get("/api/inventories/history")
+                .header("Authorization", "Bearer " + generateJwt(employeeManager))
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.inventories.length()").value(1))
+        .andExpect(jsonPath("$.inventories[0].name").value("Pendente do Depto"))
+        .andExpect(jsonPath("$.inventories[0].author").value("Outro Teste"))
+        .andExpect(jsonPath("$.totalCount").value(1));
+  }
+
+  @Test
+  @DisplayName("History: manager should see what they validated in any department, but not what others validated")
+  void findHistoryManagerValidatedByMe() throws Exception {
+
+    createReviewedInventory("Aprovado Por Mim", employeeOther, employeeManager, InventoryStatusEnum.APPROVED);
+    createReviewedInventory("Recusado Por Mim", employeeOther, employeeManager, InventoryStatusEnum.REJECTED);
+    InventoryEntity otherDeptValidated = createInventory("Aprovado Por Mim Outro Depto", employeeOther, otherDepartment, InventoryStatusEnum.APPROVED);
+    otherDeptValidated.setValidatorEmployee(employeeManager);
+    inventoryRepository.save(otherDeptValidated);
+    createReviewedInventory("Aprovado Por Outro", employeeOther, employeeActive, InventoryStatusEnum.APPROVED);
+    createReviewedInventory("Recusado Por Outro", employeeOther, employeeActive, InventoryStatusEnum.REJECTED);
+
+    mockMvc.perform(
+            get("/api/inventories/history")
+                .header("Authorization", "Bearer " + generateJwt(employeeManager))
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.inventories.length()").value(3))
+        .andExpect(jsonPath("$.totalCount").value(3));
+  }
+
+  @Test
+  @DisplayName("History: manager should not see PROCESSING, REQUESTED nor PROCESSING_FAILED of colleagues")
+  void findHistoryManagerDoesNotSeeColleaguesNotYetInReview() throws Exception {
+
+    createInventory("Processando", employeeOther, department, InventoryStatusEnum.PROCESSING);
+    createInventory("Solicitado", employeeOther, department, InventoryStatusEnum.REQUESTED);
+    createInventory("Falhou", employeeOther, department, InventoryStatusEnum.PROCESSING_FAILED);
+
+    mockMvc.perform(
+            get("/api/inventories/history")
+                .header("Authorization", "Bearer " + generateJwt(employeeManager))
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.inventories").isEmpty())
+        .andExpect(jsonPath("$.totalCount").value(0));
+  }
+
+  @Test
+  @DisplayName("History: manager own UNDER_REVIEW inventory should appear once, with their other inventories")
+  void findHistoryManagerOwnUnderReviewAppearsOnce() throws Exception {
+
+    createInventory("Meu Em Revisao", employeeManager);
+    createInventory("Meu Falhou", employeeManager, otherDepartment, InventoryStatusEnum.PROCESSING_FAILED);
+    createInventory("Gerado", employeeManager, InventoryStatusEnum.UNDER_REVIEW, InventoryTypeEnum.OUTPUT);
+
+    mockMvc.perform(
+            get("/api/inventories/history")
+                .header("Authorization", "Bearer " + generateJwt(employeeManager))
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.inventories.length()").value(2))
+        .andExpect(jsonPath("$.totalCount").value(2));
+  }
+
+  @Test
+  @DisplayName("History: filters and pagination apply over the manager union")
+  void findHistoryManagerFiltersAndPaginationOverUnion() throws Exception {
+
+    createInventory("Alfa Meu", employeeManager, department, InventoryStatusEnum.PROCESSING_FAILED);
+    createInventory("Alfa Pendente", employeeOther);
+    createReviewedInventory("Beta Validado", employeeOther, employeeManager, InventoryStatusEnum.APPROVED);
+    createInventory("Beta Pendente", employeeOther);
+
+    String token = generateJwt(employeeManager);
+
+    mockMvc.perform(get("/api/inventories/history").param("name", "alfa").header("Authorization", "Bearer " + token))
+        .andExpect(jsonPath("$.inventories.length()").value(2))
+        .andExpect(jsonPath("$.totalCount").value(2));
+
+    mockMvc.perform(get("/api/inventories/history").param("status", "UNDER_REVIEW").header("Authorization", "Bearer " + token))
+        .andExpect(jsonPath("$.inventories.length()").value(2))
+        .andExpect(jsonPath("$.totalCount").value(2));
+
+    mockMvc.perform(get("/api/inventories/history").param("skip", "3").param("take", "2").header("Authorization", "Bearer " + token))
+        .andExpect(jsonPath("$.inventories.length()").value(1))
+        .andExpect(jsonPath("$.totalCount").value(4));
   }
 
   @Test
