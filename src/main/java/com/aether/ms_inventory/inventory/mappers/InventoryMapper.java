@@ -157,6 +157,8 @@ public class InventoryMapper {
 
   public static FindInventoryByIdOutputDTO convertFindInventoryByIdEntityToOutput(InventoryEntity inventory){
     StorageFileEntity storageFile = inventory.getStorageFile();
+    DepartmentEntity department = inventory.getDepartment();
+    UnitEntity unit = department.getUnit();
 
     return new FindInventoryByIdOutputDTO(
         inventory.getId(),
@@ -172,6 +174,7 @@ public class InventoryMapper {
         inventory.getUpdatedAt(),
         convertEmployeeToOutput(inventory.getOwnerEmployee()),
         convertEmployeeToOutput(inventory.getValidatorEmployee()),
+        unit.getCnpj(),
         storageFile == null ? null : new FindInventoryByIdOutputDTO.StorageFile(
             storageFile.getId(),
             storageFile.getName(),

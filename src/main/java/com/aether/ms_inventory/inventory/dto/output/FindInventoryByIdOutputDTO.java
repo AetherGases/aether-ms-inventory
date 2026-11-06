@@ -26,6 +26,7 @@ public record FindInventoryByIdOutputDTO(
     LocalDateTime updatedAt,
     Employee owner,
     Employee validator,
+    String unitName,
     StorageFile storageFile,
     List<Emission> emissions,
     List<Reduction> reductions
